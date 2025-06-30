@@ -2,6 +2,8 @@
 
 This directory contains the documentation source for Django RLS, built with [Docusaurus](https://docusaurus.io/).
 
+Created by [Kuldeep Pisda](https://kdpisda.in) - Full-stack developer specializing in Django and PostgreSQL.
+
 ## 🌐 Live Documentation
 
 Visit [django-rls.com](https://django-rls.com) to view the live documentation.

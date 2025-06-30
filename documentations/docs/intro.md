@@ -6,6 +6,8 @@ sidebar_position: 1
 
 Django RLS provides PostgreSQL Row Level Security (RLS) capabilities for Django applications, implementing true database-level security rather than application-layer filtering.
 
+> **Created by [Kuldeep Pisda](https://kdpisda.in)** - Full-stack developer specializing in Django and PostgreSQL
+
 ## What is Row Level Security?
 
 Row Level Security (RLS) is a PostgreSQL feature that enables fine-grained access control at the row level. When RLS is enabled on a table, PostgreSQL automatically filters rows based on policies you define, ensuring users can only see and modify data they're authorized to access.

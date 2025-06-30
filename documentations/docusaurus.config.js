@@ -116,8 +116,24 @@ const config = {
               },
             ],
           },
+          {
+            title: 'More',
+            items: [
+              {
+                label: 'PyPI Package',
+                href: 'https://pypi.org/project/django-rls/',
+              },
+              {
+                html: `
+                  <a href="https://kdpisda.in" target="_blank" rel="dofollow" class="footer__link-item">
+                    Created by Kuldeep Pisda
+                  </a>
+                `,
+              },
+            ],
+          },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} Django RLS. Built with Docusaurus.`,
+        copyright: `Copyright © ${new Date().getFullYear()} Django RLS. Built with <a href="https://docusaurus.io" target="_blank" rel="noopener noreferrer">Docusaurus</a>. Created by <a href="https://kdpisda.in" target="_blank" rel="dofollow">Kuldeep Pisda</a>.`,
       },
       prism: {
         theme: lightCodeTheme,

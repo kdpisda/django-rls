@@ -21,6 +21,12 @@ function HomepageHeader() {
             Get Started - 5min ⏱️
           </Link>
         </div>
+        <p className={styles.creator}>
+          Created by{' '}
+          <a href="https://kdpisda.in" target="_blank" rel="dofollow" className={styles.creatorLink}>
+            Kuldeep Pisda
+          </a>
+        </p>
       </div>
     </header>
   );

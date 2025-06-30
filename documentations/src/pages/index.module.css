@@ -21,3 +21,20 @@
   align-items: center;
   justify-content: center;
 }
+
+.creator {
+  margin-top: 2rem;
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+
+.creatorLink {
+  color: var(--ifm-hero-text-color);
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.creatorLink:hover {
+  color: var(--ifm-hero-text-color);
+  opacity: 0.8;
+}
