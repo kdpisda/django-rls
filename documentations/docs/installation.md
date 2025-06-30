@@ -6,9 +6,9 @@ sidebar_position: 2
 
 ## Requirements
 
-- Python 3.10+
-- Django 5.0+
-- PostgreSQL 9.5+ (for RLS support)
+- Python 3.10, 3.11, 3.12, or 3.13
+- Django 5.0, 5.1, or 5.2 (LTS)
+- PostgreSQL 12+ (tested with PostgreSQL 17)
 - psycopg2-binary 2.9+
 
 ## Install via pip

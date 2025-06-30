@@ -61,7 +61,14 @@ MIDDLEWARE = [
 
 ## Documentation
 
-Full documentation is available at [django-rls.readthedocs.io](https://django-rls.readthedocs.io)
+Full documentation is available at [kdpisda.github.io/django-rls](https://kdpisda.github.io/django-rls/)
+
+### Quick Links
+
+- [Getting Started](https://kdpisda.github.io/django-rls/docs/intro)
+- [Installation Guide](https://kdpisda.github.io/django-rls/docs/installation)
+- [API Reference](https://kdpisda.github.io/django-rls/docs/api-reference)
+- [Examples](https://kdpisda.github.io/django-rls/docs/examples/basic-usage)
 
 ## License
 
