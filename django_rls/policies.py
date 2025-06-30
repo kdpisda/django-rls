@@ -1,5 +1,6 @@
 """RLS Policy classes."""
 
+import re
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
 
@@ -19,6 +20,9 @@ class BasePolicy(ABC):
     UPDATE = 'UPDATE'
     DELETE = 'DELETE'
     
+    # Regex pattern to validate field names (alphanumeric + underscore)
+    FIELD_NAME_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+    
     def __init__(self, name: str, operation: str = ALL, permissive: bool = True, 
                  roles: str = 'public', **kwargs):
         self.name = name
@@ -36,6 +40,14 @@ class BasePolicy(ABC):
         valid_operations = [self.ALL, self.SELECT, self.INSERT, self.UPDATE, self.DELETE]
         if self.operation not in valid_operations:
             raise PolicyError(f"Invalid operation: {self.operation}")
+    
+    def validate_field_name(self, field_name: str) -> None:
+        """Validate that a field name is safe for SQL."""
+        if not self.FIELD_NAME_PATTERN.match(field_name):
+            raise PolicyError(
+                f"Invalid field name '{field_name}'. Field names must contain only "
+                f"letters, numbers, and underscores, and must start with a letter or underscore."
+            )
     
     @abstractmethod
     def get_sql_expression(self) -> str:
@@ -65,6 +77,7 @@ class TenantPolicy(BasePolicy):
         super().validate()
         if not self.tenant_field:
             raise PolicyError("tenant_field is required for TenantPolicy")
+        self.validate_field_name(self.tenant_field)
     
     def get_sql_expression(self) -> str:
         """Generate SQL expression for tenant-based filtering."""
@@ -77,6 +90,12 @@ class UserPolicy(BasePolicy):
     def __init__(self, name: str, user_field: str = 'user', **kwargs):
         self.user_field = user_field
         super().__init__(name, **kwargs)
+    
+    def validate(self) -> None:
+        super().validate()
+        if not self.user_field:
+            raise PolicyError("user_field is required for UserPolicy")
+        self.validate_field_name(self.user_field)
     
     def get_sql_expression(self) -> str:
         """Generate SQL expression for user-based filtering."""

@@ -1,42 +1,80 @@
-"""Pytest configuration and fixtures."""
+"""
+Pytest configuration for Django RLS tests.
 
+Based on Django REST Framework's testing patterns.
+"""
+import os
 import pytest
-from django.test import TestCase, TransactionTestCase
-from django.db import connection
+from django.conf import settings
 
 
+def pytest_configure(config):
+    """Configure pytest with Django settings."""
+    from django.conf import settings
+    
+    # Configure Django if not already configured
+    if not settings.configured:
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tests.settings')
+        
+        import django
+        django.setup()
+
+
+def pytest_addoption(parser):
+    """Add custom command line options."""
+    parser.addoption(
+        "--postgresql",
+        action="store_true",
+        default=False,
+        help="Run tests with PostgreSQL backend"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Modify test collection to add markers."""
+    # Add postgresql marker to tests that require it
+    if not config.getoption("--postgresql"):
+        skip_postgresql = pytest.mark.skip(reason="PostgreSQL not enabled (use --postgresql)")
+        for item in items:
+            if "postgresql" in item.keywords:
+                item.add_marker(skip_postgresql)
+
+
+# Fixtures
 @pytest.fixture(scope='session')
-def django_db_setup():
-    """Setup test database with RLS support."""
-    with connection.cursor() as cursor:
-        # Ensure we're using PostgreSQL
-        cursor.execute("SELECT version()")
-        version = cursor.fetchone()[0]
-        if not version.startswith('PostgreSQL'):
-            pytest.skip("RLS tests require PostgreSQL")
+def django_db_setup(django_db_setup, django_db_blocker):
+    """Override Django's database setup."""
+    # This runs after Django's default db setup
+    pass
 
 
 @pytest.fixture
-def rls_test_case():
-    """Fixture for RLS test cases."""
-    class RLSTestCase(TransactionTestCase):
-        def setUp(self):
-            super().setUp()
-            # Setup test data
-            
-        def tearDown(self):
-            # Clean up RLS policies
-            super().tearDown()
-    
-    return RLSTestCase
+def api_client():
+    """Provide a test client."""
+    from django.test import Client
+    return Client()
 
 
 @pytest.fixture
-def mock_request():
-    """Mock Django request object."""
-    class MockRequest:
-        def __init__(self):
-            self.user = None
-            self.session = {}
-    
-    return MockRequest()
+def user(db):
+    """Create a test user."""
+    from django.contrib.auth.models import User
+    return User.objects.create_user(
+        username='testuser',
+        email='test@example.com',
+        password='testpass123'
+    )
+
+
+@pytest.fixture
+def authenticated_client(api_client, user):
+    """Provide an authenticated test client."""
+    api_client.force_login(user)
+    return api_client
+
+
+# Test markers
+pytest.mark.postgresql = pytest.mark.postgresql
+pytest.mark.unit = pytest.mark.unit
+pytest.mark.integration = pytest.mark.integration
+pytest.mark.slow = pytest.mark.slow

@@ -1,13 +1,16 @@
 """RLS Model base class."""
 
 import logging
-from typing import List, Optional, Type
+from typing import List, Optional, Type, TYPE_CHECKING
 
 from django.db import models, connection
 from django.db.models.signals import post_migrate
 from django.dispatch import receiver
 
 from .exceptions import PolicyError, ConfigurationError
+
+if TYPE_CHECKING:
+    from .policies import BasePolicy
 
 logger = logging.getLogger(__name__)
 
@@ -16,19 +19,34 @@ class RLSModelMeta(models.base.ModelBase):
     """Metaclass for RLS models."""
     
     def __new__(cls, name, bases, namespace, **kwargs):
+        # Extract rls_policies from Meta before Django processes it
+        meta = namespace.get('Meta')
+        rls_policies = []
+        if meta:
+            rls_policies = getattr(meta, 'rls_policies', [])
+            # Remove it so Django doesn't complain
+            if hasattr(meta, 'rls_policies'):
+                delattr(meta, 'rls_policies')
+        
         new_class = super().__new__(cls, name, bases, namespace, **kwargs)
         
         # Process RLS policies
-        if hasattr(new_class._meta, 'rls_policies'):
-            cls._validate_policies(new_class._meta.rls_policies)
-            new_class._rls_policies = new_class._meta.rls_policies
+        if rls_policies:
+            cls._validate_policies(rls_policies)
+            new_class._rls_policies = rls_policies
         else:
-            new_class._rls_policies = []
+            # Check if any parent class has RLS policies
+            for base in bases:
+                if hasattr(base, '_rls_policies'):
+                    new_class._rls_policies = base._rls_policies
+                    break
+            else:
+                new_class._rls_policies = []
             
         return new_class
     
     @staticmethod
-    def _validate_policies(policies: List[BasePolicy]) -> None:
+    def _validate_policies(policies: List['BasePolicy']) -> None:
         """Validate RLS policies."""
         if not isinstance(policies, list):
             raise ConfigurationError("rls_policies must be a list")

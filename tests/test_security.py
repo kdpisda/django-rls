@@ -29,9 +29,10 @@ class TestSQLInjectionPrevention(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         self.connection = Mock()
-        self.connection.quote_name = lambda x: f'"{x}"'
         self.editor = RLSDatabaseSchemaEditor(self.connection)
         self.editor.execute = Mock()
+        # Override quote_name to return quoted strings
+        self.editor.quote_name = lambda x: f'"{x}"'
     
     def test_policy_name_sql_injection(self):
         """Test that policy names are properly escaped."""
@@ -48,8 +49,11 @@ class TestSQLInjectionPrevention(TestCase):
         
         # Check that the malicious input was properly quoted
         call_args = self.editor.execute.call_args[0][0]
-        assert "DROP TABLE users" not in call_args.replace('"', '').replace("'", '')
-        assert 'CREATE POLICY "test\'; DROP TABLE users; --"' in call_args
+        # Verify the policy name is quoted (won't execute as SQL)
+        assert '"test\'; DROP TABLE users; --"' in call_args
+        # Also verify the overall structure is correct
+        assert 'CREATE POLICY' in call_args
+        assert 'USING' in call_args
     
     def test_table_name_sql_injection(self):
         """Test that table names are properly escaped."""
@@ -60,19 +64,23 @@ class TestSQLInjectionPrevention(TestCase):
         self.editor.enable_rls(model)
         
         call_args = self.editor.execute.call_args[0][0]
-        assert "DROP TABLE sensitive_data" not in call_args.replace('"', '').replace("'", '')
+        # The table name should be properly quoted
+        assert '"users\'; DROP TABLE sensitive_data; --"' in call_args
+        assert 'ALTER TABLE' in call_args
+        assert 'ENABLE ROW LEVEL SECURITY' in call_args
     
     def test_field_name_sql_injection(self):
         """Test that field names in policies are properly handled."""
         # Attempt SQL injection via field name
-        malicious_policy = TenantPolicy(
-            'test_policy',
-            tenant_field="tenant'; DELETE FROM users WHERE '1'='1"
-        )
+        with pytest.raises(PolicyError) as exc_info:
+            malicious_policy = TenantPolicy(
+                'test_policy',
+                tenant_field="tenant'; DELETE FROM users WHERE '1'='1"
+            )
         
-        # The SQL expression should safely handle the field name
-        expr = malicious_policy.get_sql_expression()
-        assert "DELETE FROM users" not in expr
+        # Should reject invalid field names
+        assert "Invalid field name" in str(exc_info.value)
+        assert "letters, numbers, and underscores" in str(exc_info.value)
     
     def test_custom_expression_validation(self):
         """Test that custom expressions don't allow arbitrary SQL."""
@@ -87,7 +95,7 @@ class TestSQLInjectionPrevention(TestCase):
         assert expr == "is_public = true; DROP TABLE users; --"
         # In production, this should be validated or use parameterized queries
     
-    @patch('django_rls.middleware.connection')
+    @patch('django_rls.db.functions.connection')
     def test_context_value_sql_injection(self, mock_conn):
         """Test that context values are properly parameterized."""
         mock_cursor = Mock()

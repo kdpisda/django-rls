@@ -2,13 +2,15 @@
 
 import pytest
 from unittest.mock import Mock, patch
+from django.test import TestCase
 from django.contrib.auth.models import User, AnonymousUser
 from django.http import HttpResponse
 
 from django_rls.middleware import RLSContextMiddleware
 
 
-class TestRLSContextMiddleware:
+@pytest.mark.django_db
+class TestRLSContextMiddleware(TestCase):
     """Test RLS context middleware."""
     
     def test_middleware_initialization(self):
@@ -17,8 +19,8 @@ class TestRLSContextMiddleware:
         middleware = RLSContextMiddleware(get_response)
         assert middleware.get_response == get_response
     
-    @patch('django_rls.middleware.connection')
-    def test_set_user_context(self, mock_connection):
+    @patch('django_rls.db.functions.set_rls_context')
+    def test_set_user_context(self, mock_set_rls_context):
         """Test setting user context."""
         # Setup
         get_response = Mock(return_value=HttpResponse())
@@ -27,21 +29,16 @@ class TestRLSContextMiddleware:
         # Create mock request with user
         request = Mock()
         request.user = Mock(id=123)
-        
-        # Create mock cursor
-        mock_cursor = Mock()
-        mock_connection.cursor.return_value.__enter__.return_value = mock_cursor
+        request.session = {}
         
         # Call middleware
         middleware(request)
         
-        # Verify set_config was called for user
-        mock_cursor.execute.assert_any_call(
-            "SELECT set_config('rls.user_id', %s, true)", ['123']
-        )
+        # Verify set_rls_context was called for user
+        mock_set_rls_context.assert_any_call('user_id', 123, is_local=True)
     
-    @patch('django_rls.middleware.connection')
-    def test_anonymous_user_context(self, mock_connection):
+    @patch('django_rls.db.functions.set_rls_context')
+    def test_anonymous_user_context(self, mock_set_rls_context):
         """Test handling anonymous user."""
         # Setup
         get_response = Mock(return_value=HttpResponse())
@@ -52,13 +49,54 @@ class TestRLSContextMiddleware:
         request.user = AnonymousUser()
         request.session = {}
         
-        # Create mock cursor
-        mock_cursor = Mock()
-        mock_connection.cursor.return_value.__enter__.return_value = mock_cursor
+        # Call middleware
+        middleware(request)
+        
+        # Verify set_rls_context was called with empty values for clearing
+        # Should be called twice during _clear_rls_context
+        assert mock_set_rls_context.call_count >= 2
+        
+        # Check that user_id was cleared
+        mock_set_rls_context.assert_any_call('user_id', '', is_local=True)
+        # Check that tenant_id was cleared
+        mock_set_rls_context.assert_any_call('tenant_id', '', is_local=True)
+    
+    @patch('django_rls.db.functions.set_rls_context')
+    def test_tenant_context_from_request(self, mock_set_rls_context):
+        """Test setting tenant context from request.tenant."""
+        # Setup
+        get_response = Mock(return_value=HttpResponse())
+        middleware = RLSContextMiddleware(get_response)
+        
+        # Create mock request with tenant
+        request = Mock()
+        request.user = AnonymousUser()
+        request.tenant = Mock(id=456)
+        request.session = {}
         
         # Call middleware
         middleware(request)
         
-        # Verify set_config was not called for user_id
-        calls = [call[0][0] for call in mock_cursor.execute.call_args_list]
-        assert not any("rls.user_id" in call and call != "SELECT set_config('rls.user_id', '', true)" for call in calls)
+        # Verify set_rls_context was called for tenant
+        mock_set_rls_context.assert_any_call('tenant_id', 456, is_local=True)
+    
+    @patch('django_rls.db.functions.set_rls_context')
+    def test_tenant_context_from_session(self, mock_set_rls_context):
+        """Test setting tenant context from session."""
+        # Setup
+        get_response = Mock(return_value=HttpResponse())
+        middleware = RLSContextMiddleware(get_response)
+        
+        # Create mock request with tenant in session
+        request = Mock()
+        request.user = AnonymousUser()
+        request.session = {'tenant_id': 789}
+        
+        # Mock that request doesn't have tenant attribute
+        del request.tenant
+        
+        # Call middleware
+        middleware(request)
+        
+        # Verify set_rls_context was called for tenant
+        mock_set_rls_context.assert_any_call('tenant_id', 789, is_local=True)

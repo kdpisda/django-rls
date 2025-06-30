@@ -77,13 +77,16 @@ multi_line_output = 3
 line_length = 88
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "tests.testapp.settings"
+DJANGO_SETTINGS_MODULE = "tests.settings"
 python_files = ["test_*.py", "*_test.py"]
-addopts = "--cov=django_rls --cov-report=term-missing --cov-report=html"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config --cov=django_rls"
 markers = [
-    "security: Security-related tests",
-    "slow: Slow running tests",
+    "postgresql: Tests that require PostgreSQL backend",
+    "unit: Unit tests that don't require database",
     "integration: Integration tests requiring database",
+    "slow: Slow running tests",
+    "security: Security-related tests",
 ]
 
 [tool.mypy]
