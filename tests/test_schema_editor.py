@@ -5,7 +5,7 @@ from unittest.mock import Mock, MagicMock, patch
 from django.db import connection
 from django.test import TestCase
 
-from django_rls.backends.postgresql import RLSDatabaseSchemaEditor
+from django_rls.backends.postgresql.base import RLSDatabaseSchemaEditor
 from django_rls.policies import TenantPolicy, UserPolicy, CustomPolicy
 
 
@@ -151,7 +151,7 @@ class TestDatabaseWrapper(TestCase):
     @patch('django_rls.backends.postgresql.base.DatabaseWrapper')
     def test_schema_editor_class(self, mock_base):
         """Test that our wrapper uses the custom schema editor."""
-        from django_rls.backends.postgresql import DatabaseWrapper
+        from django_rls.backends.postgresql.base import DatabaseWrapper
         
         wrapper = DatabaseWrapper({})
         assert wrapper.SchemaEditorClass == RLSDatabaseSchemaEditor
@@ -159,7 +159,7 @@ class TestDatabaseWrapper(TestCase):
     @patch('django_rls.backends.postgresql.base.DatabaseWrapper')
     def test_schema_editor_method(self, mock_base):
         """Test schema_editor method returns our custom editor."""
-        from django_rls.backends.postgresql import DatabaseWrapper
+        from django_rls.backends.postgresql.base import DatabaseWrapper
         
         wrapper = DatabaseWrapper({})
         editor = wrapper.schema_editor()

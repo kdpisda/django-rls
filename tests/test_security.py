@@ -18,7 +18,7 @@ from django.core.exceptions import PermissionDenied
 
 from django_rls.policies import TenantPolicy, UserPolicy, CustomPolicy
 from django_rls.middleware import RLSContextMiddleware
-from django_rls.backends.postgresql import RLSDatabaseSchemaEditor
+from django_rls.backends.postgresql.base import RLSDatabaseSchemaEditor
 from django_rls.db.functions import RLSContext, set_rls_context, get_rls_context
 from django_rls.exceptions import PolicyError
 
