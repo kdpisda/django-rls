@@ -65,6 +65,12 @@ jobs:
       env:
         DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_django_rls
     
+    - name: Run security tests
+      run: |
+        poetry run pytest tests/test_security.py -v --tb=short
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_django_rls
+    
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v3
       with:

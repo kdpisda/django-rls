@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/kdpisda/django-rls/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: 🔒 Security Vulnerability
+    url: mailto:security@django-rls.org
+    about: Please report critical security vulnerabilities via email for responsible disclosure
+  - name: 📖 Documentation
+    url: https://django-rls.readthedocs.io
+    about: Check out our documentation for usage guides and API reference

@@ -80,6 +80,11 @@ line_length = 88
 DJANGO_SETTINGS_MODULE = "tests.testapp.settings"
 python_files = ["test_*.py", "*_test.py"]
 addopts = "--cov=django_rls --cov-report=term-missing --cov-report=html"
+markers = [
+    "security: Security-related tests",
+    "slow: Slow running tests",
+    "integration: Integration tests requiring database",
+]
 
 [tool.mypy]
 python_version = "3.10"
