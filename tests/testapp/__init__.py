@@ -1,0 +1,1 @@
+"""Test Django app for integration testing."""

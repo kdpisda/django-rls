@@ -1,0 +1,87 @@
+[tool.poetry]
+name = "django-rls"
+version = "0.1.0"
+description = "PostgreSQL Row Level Security (RLS) for Django applications"
+authors = ["Kuldeep Pisda <your.email@example.com>"]
+readme = "README.md"
+license = "BSD-3-Clause"
+homepage = "https://github.com/kdpisda/django-rls"
+repository = "https://github.com/kdpisda/django-rls"
+documentation = "https://django-rls.readthedocs.io"
+keywords = ["django", "postgresql", "rls", "row-level-security", "database"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Framework :: Django :: 5.0",
+    "Framework :: Django :: 5.1",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+Django = ">=5.0,<6.0"
+psycopg2-binary = "^2.9.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-django = "^4.5.2"
+pytest-cov = "^4.1.0"
+black = "^23.0.0"
+isort = "^5.12.0"
+flake8 = "^6.0.0"
+mypy = "^1.5.0"
+pre-commit = "^3.4.0"
+tox = "^4.11.0"
+
+[tool.poetry.group.docs.dependencies]
+sphinx = "^7.1.0"
+sphinx-rtd-theme = "^1.3.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+include = '\.pyi?'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.testapp.settings"
+python_files = ["test_*.py", "*_test.py"]
+addopts = "--cov=django_rls --cov-report=term-missing --cov-report=html"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
