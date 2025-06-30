@@ -2,13 +2,19 @@
 name = "django-rls"
 version = "0.1.0"
 description = "PostgreSQL Row Level Security (RLS) for Django applications"
-authors = ["Kuldeep Pisda <your.email@example.com>"]
+authors = ["Kuldeep Pisda <kdpisda@gmail.com>"]
 readme = "README.md"
 license = "BSD-3-Clause"
 homepage = "https://github.com/kdpisda/django-rls"
 repository = "https://github.com/kdpisda/django-rls"
-documentation = "https://django-rls.readthedocs.io"
-keywords = ["django", "postgresql", "rls", "row-level-security", "database"]
+documentation = "https://django-rls.com"
+keywords = ["django", "postgresql", "rls", "row-level-security", "database", "security", "multi-tenant", "saas"]
+packages = [{include = "django_rls"}]
+include = [
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Web Environment",
@@ -49,6 +55,11 @@ tox = "^4.23.2"
 [tool.poetry.group.docs.dependencies]
 sphinx = "^8.1.3"
 sphinx-rtd-theme = "^3.0.2"
+
+[[tool.poetry.source]]
+name = "testpypi"
+url = "https://test.pypi.org/legacy/"
+priority = "explicit"
 
 [build-system]
 requires = ["poetry-core"]

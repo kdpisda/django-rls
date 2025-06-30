@@ -1,11 +1,13 @@
 # Django RLS
 
+[![PyPI version](https://badge.fury.io/py/django-rls.svg)](https://badge.fury.io/py/django-rls)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/django-rls)](https://pypi.org/project/django-rls/)
 [![CI](https://github.com/kdpisda/django-rls/actions/workflows/ci.yml/badge.svg)](https://github.com/kdpisda/django-rls/actions/workflows/ci.yml)
 [![Documentation](https://github.com/kdpisda/django-rls/actions/workflows/deploy-docs.yml/badge.svg)](https://django-rls.com)
 [![codecov](https://codecov.io/gh/kdpisda/django-rls/branch/main/graph/badge.svg)](https://codecov.io/gh/kdpisda/django-rls)
-[![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://pypi.org/project/django-rls/)
-[![Django Version](https://img.shields.io/badge/django-5.0%20%7C%205.1%20%7C%205.2-blue.svg)](https://www.djangoproject.com/)
-[![License](https://img.shields.io/badge/license-BSD%203--Clause-blue.svg)](LICENSE)
+[![Python Version](https://img.shields.io/pypi/pyversions/django-rls)](https://pypi.org/project/django-rls/)
+[![Django Version](https://img.shields.io/badge/django-5.0%20%7C%205.1%20%7C%205.2-green.svg)](https://www.djangoproject.com/)
+[![License](https://img.shields.io/pypi/l/django-rls)](LICENSE)
 
 A Django package that provides PostgreSQL Row Level Security (RLS) capabilities at the database level.
 
@@ -36,8 +38,16 @@ class TenantAwareModel(RLSModel):
 
 ## Installation
 
+Install from PyPI:
+
 ```bash
 pip install django-rls
+```
+
+Or install the latest development version:
+
+```bash
+pip install git+https://github.com/kdpisda/django-rls.git
 ```
 
 ### Requirements

@@ -1,0 +1,28 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="90" fill="#0F4C3A" stroke="#2E8B57" stroke-width="4"/>
+  
+  <!-- Shield shape representing security -->
+  <path d="M100 30 L130 50 L130 120 Q130 140 100 150 Q70 140 70 120 L70 50 Z" 
+        fill="#E8F5E8" 
+        stroke="#2E8B57" 
+        stroke-width="2"/>
+  
+  <!-- Database rows (horizontal lines) -->
+  <line x1="80" y1="65" x2="120" y2="65" stroke="#0F4C3A" stroke-width="3" stroke-linecap="round"/>
+  <line x1="80" y1="80" x2="120" y2="80" stroke="#0F4C3A" stroke-width="3" stroke-linecap="round"/>
+  <line x1="80" y1="95" x2="120" y2="95" stroke="#0F4C3A" stroke-width="3" stroke-linecap="round"/>
+  <line x1="80" y1="110" x2="120" y2="110" stroke="#0F4C3A" stroke-width="3" stroke-linecap="round"/>
+  <line x1="80" y1="125" x2="120" y2="125" stroke="#0F4C3A" stroke-width="3" stroke-linecap="round"/>
+  
+  <!-- Lock icon in the center -->
+  <rect x="92" y="100" width="16" height="12" rx="2" fill="#0F4C3A"/>
+  <path d="M96 100 L96 94 Q96 90 100 90 Q104 90 104 94 L104 100" 
+        fill="none" 
+        stroke="#0F4C3A" 
+        stroke-width="2" 
+        stroke-linecap="round"/>
+  
+  <!-- Small dot for keyhole -->
+  <circle cx="100" cy="105" r="1.5" fill="#E8F5E8"/>
+</svg>
