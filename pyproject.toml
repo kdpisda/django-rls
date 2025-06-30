@@ -82,6 +82,7 @@ line_length = 88
 DJANGO_SETTINGS_MODULE = "tests.settings"
 python_files = ["test_*.py", "*_test.py"]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = "-ra --strict-markers --strict-config --cov=django_rls"
 markers = [
     "postgresql: Tests that require PostgreSQL backend",

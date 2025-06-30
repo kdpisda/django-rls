@@ -10,6 +10,14 @@ from django.conf import settings
 
 def pytest_configure(config):
     """Configure pytest with Django settings."""
+    import sys
+    import os
+    
+    # Add project root to Python path
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    
     from django.conf import settings
     
     # Configure Django if not already configured
