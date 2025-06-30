@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/kdpisda/django-rls/actions/workflows/ci.yml/badge.svg)](https://github.com/kdpisda/django-rls/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/kdpisda/django-rls/branch/main/graph/badge.svg)](https://codecov.io/gh/kdpisda/django-rls)
-[![Python Version](https://img.shields.io/pypi/pyversions/django-rls.svg)](https://pypi.org/project/django-rls/)
-[![Django Version](https://img.shields.io/badge/django-5.0%20%7C%205.1-blue.svg)](https://www.djangoproject.com/)
+[![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://pypi.org/project/django-rls/)
+[![Django Version](https://img.shields.io/badge/django-5.0%20%7C%205.1%20%7C%205.2-blue.svg)](https://www.djangoproject.com/)
 [![License](https://img.shields.io/badge/license-BSD%203--Clause-blue.svg)](LICENSE)
 
 A Django package that provides PostgreSQL Row Level Security (RLS) capabilities at the database level.
@@ -12,7 +12,7 @@ A Django package that provides PostgreSQL Row Level Security (RLS) capabilities 
 
 - 🔒 Database-level Row Level Security using PostgreSQL RLS
 - 🏢 Tenant-based and user-based policies
-- 🔧 Django 5.x compatibility
+- 🔧 Django 5.0, 5.1, and 5.2 (LTS) support
 - 🧪 Comprehensive test coverage
 - 📖 Extensible policy system
 - ⚡ Performance optimized
@@ -38,6 +38,12 @@ class TenantAwareModel(RLSModel):
 ```bash
 pip install django-rls
 ```
+
+### Requirements
+
+- Python 3.10, 3.11, 3.12, or 3.13
+- Django 5.0, 5.1, or 5.2 (LTS)
+- PostgreSQL 12 or higher (tested with PostgreSQL 17)
 
 Add to your Django settings:
 

@@ -12,7 +12,7 @@ jobs:
     
     services:
       postgres:
-        image: postgres:15
+        image: postgres:17
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: test_django_rls
@@ -26,14 +26,14 @@ jobs:
     
     strategy:
       matrix:
-        python-version: [3.10, 3.11, 3.12]
-        django-version: [5.0, 5.1]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        django-version: ["5.0", "5.1", "5.2"]
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     
@@ -46,7 +46,7 @@ jobs:
     
     - name: Load cached venv
       id: cached-poetry-dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: .venv
         key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
@@ -72,7 +72,7 @@ jobs:
         DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_django_rls
     
     - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
         flags: unittests
@@ -80,8 +80,8 @@ jobs:
         fail_ci_if_error: false  # Don't fail if codecov is down
     
     - name: Upload coverage HTML report
-      uses: actions/upload-artifact@v3
-      if: matrix.python-version == '3.11' && matrix.django-version == '5.1'  # Only upload once
+      uses: actions/upload-artifact@v4
+      if: matrix.python-version == '3.12' && matrix.django-version == '5.2'  # Only upload once
       with:
         name: coverage-report
         path: htmlcov/
@@ -99,7 +99,7 @@ jobs:
         MINIMUM_ORANGE: 70
     
     - name: Run linting
-      if: matrix.python-version == '3.11' && matrix.django-version == '5.1'  # Only run once
+      if: matrix.python-version == '3.12' && matrix.django-version == '5.2'  # Only run once
       run: |
         poetry run black --check .
         poetry run isort --check-only .
@@ -113,7 +113,7 @@ jobs:
     
     steps:
     - name: Download coverage report
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: coverage-report
         path: coverage-report
@@ -130,4 +130,4 @@ jobs:
         fi
         
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "✅ Tests completed across Python 3.10, 3.11, 3.12 and Django 5.0, 5.1" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Tests completed across Python 3.10, 3.11, 3.12, 3.13 and Django 5.0, 5.1, 5.2" >> $GITHUB_STEP_SUMMARY
