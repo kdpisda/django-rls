@@ -1,212 +1,204 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+# Django RLS Development Guide
 
 ## Project Overview
+Django RLS is a comprehensive Django package that implements PostgreSQL Row Level Security (RLS) for Django applications. It provides a declarative way to add row-level security policies to Django models, similar to how Django REST Framework handles serializers and viewsets.
 
-Django RLS is a Django package that provides PostgreSQL Row Level Security (RLS) capabilities at the database level. It follows Django REST Framework's extensibility patterns and provides true database-level security rather than application-layer filtering.
+## Key Components
 
-## Development Setup & Commands
+### 1. Models (`django_rls/models.py`)
+- **RLSModel**: Base model class that all RLS-enabled models should inherit from
+- **RLSModelMeta**: Metaclass that processes `rls_policies` from model Meta class
+- Automatically enables RLS on PostgreSQL tables during migrations
 
-### Initial Setup
+### 2. Policies (`django_rls/policies.py`)
+- **BasePolicy**: Abstract base class for all policies
+- **TenantPolicy**: Multi-tenant filtering based on tenant field
+- **UserPolicy**: User-based access control
+- **CustomPolicy**: Flexible custom SQL expressions
+- All policies include field name validation to prevent SQL injection
+
+### 3. Middleware (`django_rls/middleware.py`)
+- **RLSContextMiddleware**: Sets PostgreSQL session variables for RLS
+- Extracts user_id and tenant_id from request
+- Clears context after request processing
+
+### 4. Database Backend (`django_rls/backends/postgresql.py`)
+- **RLSDatabaseSchemaEditor**: Custom schema editor for RLS operations
+- Implements methods: `enable_rls()`, `disable_rls()`, `force_rls()`, `create_policy()`, `drop_policy()`, `alter_policy()`
+- Uses Django's schema editor pattern (no manual SQL string construction)
+
+### 5. Migration Operations (`django_rls/migration_operations.py`)
+- Custom Django migration operations for RLS
+- **EnableRLS**, **DisableRLS**, **CreatePolicy**, **DropPolicy**, **AlterPolicy**
+
+## Testing
+
+### Running Tests
 ```bash
-# Install Poetry (dependency management)
-curl -sSL https://install.python-poetry.org | python3 -
+# Using Poetry (recommended)
+poetry run pytest
+
+# Using runtests.py (DRF-style)
+poetry run python runtests.py
+
+# Run with coverage
+poetry run pytest --cov=django_rls --cov-report=term-missing
+
+# Run PostgreSQL-specific tests
+poetry run pytest --postgresql
+
+# Run specific test file
+poetry run pytest tests/test_models.py -xvs
+```
+
+### Test Structure
+Tests follow Django REST Framework patterns:
+- `tests/models.py` - Test models used across test suite
+- `tests/settings.py` - Test Django settings
+- `runtests.py` - Test runner script
+- `conftest.py` - Pytest configuration and fixtures
+
+### Docker Testing
+```bash
+# Start PostgreSQL for testing
+make test-db-up
+
+# Run tests with PostgreSQL
+make test-postgres
+
+# Clean up
+make test-db-down
+```
+
+## Development Workflow
+
+### 1. Setting Up Development Environment
+```bash
+# Clone repository
+git clone https://github.com/kdpisda/django-rls.git
+cd django-rls
 
 # Install dependencies
 poetry install
 
-# Setup pre-commit hooks
-poetry run pre-commit install
-
-# Setup development database (PostgreSQL required)
-createdb django_rls_dev
+# Start PostgreSQL (optional, for integration tests)
+docker-compose up -d
 ```
 
-### Common Development Commands
+### 2. Making Changes
+- Always run tests before committing
+- Follow existing code patterns (especially Django REST Framework style)
+- Add tests for new features
+- Update documentation as needed
+
+### 3. Code Quality
 ```bash
-# Run tests
-poetry run pytest
+# Run linting
+poetry run flake8 django_rls/
 
-# Run tests with coverage
-poetry run pytest --cov=django_rls --cov-report=term-missing
+# Run type checking
+poetry run mypy django_rls/
 
-# Run specific test file
-poetry run pytest tests/test_models.py
-
-# Run tests matching pattern
-poetry run pytest -k "test_tenant_policy"
-
-# Linting and formatting
-poetry run black .
-poetry run isort .
-poetry run flake8 .
-poetry run mypy django_rls
-
-# Run all quality checks
-poetry run black . && poetry run isort . && poetry run flake8 . && poetry run mypy django_rls
-
-# Build package
-poetry build
-
-# Run Django management commands
-poetry run python manage.py enable_rls
-poetry run python manage.py disable_rls
+# Format code
+poetry run black django_rls/ tests/
+poetry run isort django_rls/ tests/
 ```
 
-### Documentation Commands
-```bash
-# Navigate to docs directory
-cd documentations/
+### 4. Security Considerations
+- All field names in policies are validated against SQL injection
+- Policy names and table names are properly quoted using Django's `quote_name`
+- Custom expressions in `CustomPolicy` should be carefully reviewed
+- Context values are parameterized to prevent injection
 
-# Install documentation dependencies
-npm install
+## Common Issues and Solutions
 
-# Start documentation server
-npm start
-
-# Build documentation
-npm run build
+### 1. Circular Import with BasePolicy
+**Problem**: `NameError: name 'BasePolicy' is not defined` in type hints
+**Solution**: Use `TYPE_CHECKING` pattern:
+```python
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from django_rls.policies import BasePolicy
 ```
 
-## Architecture Overview
-
-### Core Components
-
-1. **RLSModel** (`django_rls/models.py`)
-   - Base model class that all RLS-enabled models inherit from
-   - Uses metaclass `RLSModelMeta` to process policies at model creation
-   - Provides `enable_rls()` and `disable_rls()` class methods
-   - Automatically enables RLS after migrations via signal
-
-2. **Policy System** (`django_rls/policies.py`)
-   - `BasePolicy`: Abstract base class for all policies
-   - `TenantPolicy`: Multi-tenant filtering based on tenant field
-   - `UserPolicy`: User-based filtering
-   - `CustomPolicy`: Allows custom SQL expressions
-   - Policies generate PostgreSQL RLS SQL expressions
-
-3. **RLSContextMiddleware** (`django_rls/middleware.py`)
-   - Sets PostgreSQL session variables (`rls.user_id`, `rls.tenant_id`)
-   - Integrates with Django's request/response cycle
-   - Clears context after request processing
-   - Supports multiple tenant detection strategies
-
-4. **Database Backend** (`django_rls/backends/postgresql.py`)
-   - `RLSDatabaseSchemaEditor`: Custom schema editor for RLS operations
-   - `DatabaseWrapper`: Custom database wrapper using the RLS schema editor
-   - Follows Django's database backend patterns for proper SQL generation
-
-5. **Management Commands** (`django_rls/management/commands/`)
-   - `enable_rls`: Enable RLS for all or specific models
-   - `disable_rls`: Disable RLS for all or specific models
-
-### Key Design Patterns
-
-1. **Metaclass Processing**: Policies are validated and attached to models at class creation time
-2. **Schema Editor Integration**: RLS operations use Django's schema editor pattern for database abstraction
-3. **Migration Operations**: Custom migration operations (EnableRLS, CreatePolicy) for version control
-4. **Context Management**: PostgreSQL session variables managed through database functions
-5. **Expression Building**: SQL expressions built using Django-style APIs rather than raw strings
-
-### Database Requirements
-
-- PostgreSQL 9.5+ (for RLS support)
-- Superuser or appropriate permissions for:
-  - `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`
-  - `CREATE POLICY`
-  - `DROP POLICY`
-
-## Testing Strategy
-
-### Test Structure
-```
-tests/
-├── conftest.py          # Pytest configuration and fixtures
-├── test_models.py       # RLSModel tests
-├── test_policies.py     # Policy class tests
-├── test_middleware.py   # Middleware tests
-├── test_schema_editor.py # Schema editor tests
-└── testapp/            # Test Django app for integration tests
+### 2. Django Meta Class Compatibility
+**Problem**: `TypeError: 'class Meta' got invalid attribute(s): rls_policies`
+**Solution**: Extract `rls_policies` in metaclass before Django processes Meta:
+```python
+class RLSModelMeta(models.base.ModelBase):
+    def __new__(cls, name, bases, namespace, **kwargs):
+        meta = namespace.get('Meta')
+        if meta and hasattr(meta, 'rls_policies'):
+            rls_policies = getattr(meta, 'rls_policies', [])
+            delattr(meta, 'rls_policies')  # Remove before Django sees it
 ```
 
-### Key Testing Considerations
+### 3. Test Database Access
+**Problem**: `RuntimeError: Database access not allowed`
+**Solution**: Add `@pytest.mark.django_db` decorator or inherit from `django.test.TestCase`
 
-1. **Database Requirements**: Tests require PostgreSQL with RLS capabilities
-2. **Transaction Isolation**: Use `TransactionTestCase` for RLS operations
-3. **Context Testing**: Mock Django request objects for middleware testing
-4. **Policy Validation**: Test both valid and invalid policy configurations
-
-### Running Tests
-```bash
-# Run all tests
-poetry run pytest
-
-# Run with verbose output
-poetry run pytest -v
-
-# Run with database query logging
-poetry run pytest --log-cli-level=DEBUG
-
-# Run specific test class
-poetry run pytest tests/test_policies.py::TestTenantPolicy
+### 4. PostgreSQL-specific Functions in Tests
+**Problem**: `sqlite3.OperationalError: no such function: set_config`
+**Solution**: Mock the database-specific functions in tests:
+```python
+@patch('django_rls.db.functions.set_rls_context')
+def test_something(self, mock_set_rls_context):
+    # Test code here
 ```
 
-## Common Development Tasks
+## Architecture Decisions
 
-### Adding a New Policy Type
+### 1. Schema Editor Pattern
+Instead of manual SQL string construction, we use Django's schema editor pattern:
+- Safer and more maintainable
+- Properly handles quoting and escaping
+- Consistent with Django's approach
 
-1. Create new policy class in `django_rls/policies.py` inheriting from `BasePolicy`
-2. Implement `get_sql_expression()` method
-3. Add validation in `validate()` method
-4. Write tests in `tests/test_policies.py`
-5. Add example usage in `examples/`
+### 2. Policy Validation
+All policies validate field names to prevent SQL injection:
+- Only alphanumeric characters and underscores allowed
+- Must start with letter or underscore
+- Raises `PolicyError` for invalid names
 
-### Modifying SQL Generation
+### 3. Testing Strategy
+Following Django REST Framework's testing approach:
+- Separate test models in `tests/models.py`
+- Custom test runner in `runtests.py`
+- Comprehensive fixture support in `conftest.py`
+- Clear separation between unit and integration tests
 
-1. Edit `django_rls/sql/generators.py`
-2. Ensure backward compatibility
-3. Update tests in `tests/test_sql_generation.py`
-4. Test with actual PostgreSQL database
+## Future Enhancements
 
-### Adding Middleware Features
+1. **Additional Policy Types**
+   - TimeBasedPolicy for temporal access control
+   - GroupPolicy for group-based permissions
+   - RolePolicy for role-based access control
 
-1. Edit `django_rls/middleware.py`
-2. Consider performance implications
-3. Add context extraction methods as needed
-4. Update middleware tests
+2. **Performance Optimizations**
+   - Policy caching mechanisms
+   - Batch policy operations
+   - Query optimization helpers
 
-## Project Structure Reference
+3. **Management Commands**
+   - `manage.py rls_audit` - Audit current RLS policies
+   - `manage.py rls_sync` - Sync policies with database
+   - `manage.py rls_test` - Test policy effectiveness
 
-```
-django-rls/
-├── django_rls/              # Main package
-│   ├── models.py           # RLSModel and metaclass
-│   ├── policies.py         # Policy classes
-│   ├── middleware.py       # Context middleware
-│   ├── backends/           # Database backends
-│   │   └── postgresql.py   # PostgreSQL backend with RLS support
-│   ├── db/                # Database utilities
-│   │   └── functions.py   # Database functions and context managers
-│   ├── expressions.py     # SQL expression builders
-│   ├── migration_operations.py  # Django migration operations
-│   └── management/        # Django management commands
-├── tests/                  # Test suite
-├── examples/              # Usage examples
-└── documentations/        # Docusaurus documentation
-```
+4. **Admin Integration**
+   - Django Admin interface for policy management
+   - Visual policy editor
+   - Policy testing interface
 
-## Important Notes
+## Contributing
 
-- **License**: BSD 3-Clause License (not MIT as mentioned in some docs)
-- **Python Support**: 3.10+ required
-- **Django Support**: Django 5.0+ required
-- **Database**: PostgreSQL-only (RLS is PostgreSQL-specific feature)
-- **Security**: This implements database-level security, not application-level filtering
+1. Fork the repository
+2. Create a feature branch
+3. Make changes with tests
+4. Run full test suite
+5. Submit pull request
 
-## Debugging Tips
-
-1. **Enable PostgreSQL Query Logging**: Check actual RLS policies being applied
-2. **Test Context Variables**: Use `SELECT current_setting('rls.user_id')` in PostgreSQL
-3. **Check Policy Status**: Use `\d+ table_name` in psql to see RLS policies
-4. **Migration Issues**: Ensure migrations run with appropriate database permissions
+Please ensure:
+- All tests pass
+- Code follows project style
+- Documentation is updated
+- Security implications are considered
