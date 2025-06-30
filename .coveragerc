@@ -1,0 +1,21 @@
+[run]
+source = django_rls
+omit = 
+    */migrations/*
+    */tests/*
+    */testapp/*
+    */__init__.py
+    */apps.py
+    */conf.py
+
+[report]
+precision = 2
+skip_empty = True
+show_missing = True
+skip_covered = False
+
+[html]
+directory = htmlcov
+
+[xml]
+output = coverage.xml

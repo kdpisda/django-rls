@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ '**' ]  # Run on all branches
   pull_request:
     branches: [ main ]
 
@@ -59,20 +59,69 @@ jobs:
       run: |
         poetry run pip install "Django~=${{ matrix.django-version }}.0"
     
-    - name: Run tests
+    - name: Run tests with coverage
       run: |
-        poetry run pytest
+        poetry run pytest --cov=django_rls --cov-report=xml --cov-report=html --cov-report=term
       env:
         DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_django_rls
     
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false  # Don't fail if codecov is down
+    
+    - name: Upload coverage HTML report
+      uses: actions/upload-artifact@v3
+      if: matrix.python-version == '3.11' && matrix.django-version == '5.1'  # Only upload once
+      with:
+        name: coverage-report
+        path: htmlcov/
+    
+    - name: Display coverage report
+      run: |
+        poetry run coverage report
+    
+    - name: Comment coverage on PR
+      uses: py-cov-action/python-coverage-comment-action@v3
+      if: github.event_name == 'pull_request'
+      with:
+        GITHUB_TOKEN: ${{ github.token }}
+        MINIMUM_GREEN: 85
+        MINIMUM_ORANGE: 70
+    
     - name: Run linting
+      if: matrix.python-version == '3.11' && matrix.django-version == '5.1'  # Only run once
       run: |
         poetry run black --check .
         poetry run isort --check-only .
         poetry run flake8 .
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
     
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+    steps:
+    - name: Download coverage report
+      uses: actions/download-artifact@v3
       with:
-        file: ./htmlcov/coverage.xml
-        fail_ci_if_error: true
+        name: coverage-report
+        path: coverage-report
+      continue-on-error: true
+    
+    - name: Create test summary
+      run: |
+        echo "## Test Results Summary 📊" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -d "coverage-report" ]; then
+          echo "### Coverage Report Available" >> $GITHUB_STEP_SUMMARY
+          echo "Coverage HTML report has been uploaded as an artifact." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Tests completed across Python 3.10, 3.11, 3.12 and Django 5.0, 5.1" >> $GITHUB_STEP_SUMMARY

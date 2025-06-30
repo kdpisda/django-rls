@@ -1,5 +1,11 @@
 # Django RLS
 
+[![CI](https://github.com/kdpisda/django-rls/actions/workflows/ci.yml/badge.svg)](https://github.com/kdpisda/django-rls/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/kdpisda/django-rls/branch/main/graph/badge.svg)](https://codecov.io/gh/kdpisda/django-rls)
+[![Python Version](https://img.shields.io/pypi/pyversions/django-rls.svg)](https://pypi.org/project/django-rls/)
+[![Django Version](https://img.shields.io/badge/django-5.0%20%7C%205.1-blue.svg)](https://www.djangoproject.com/)
+[![License](https://img.shields.io/badge/license-BSD%203--Clause-blue.svg)](LICENSE)
+
 A Django package that provides PostgreSQL Row Level Security (RLS) capabilities at the database level.
 
 ## Features
