@@ -22,9 +22,42 @@ concurrency:
   group: "pages"
   cancel-in-progress: true
 
+env:
+  # Custom domain for the documentation
+  DOCS_DOMAIN: django-rls.com
+
 jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      docs-changed: ${{ steps.filter.outputs.docs }}
+      checksum: ${{ steps.checksum.outputs.checksum }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for documentation changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            docs:
+              - 'documentations/**'
+              - '.github/workflows/deploy-docs.yml'
+      
+      - name: Calculate documentation checksum
+        id: checksum
+        if: steps.filter.outputs.docs == 'true'
+        run: |
+          # Calculate checksum of all documentation files
+          CHECKSUM=$(find documentations -type f -name "*.md" -o -name "*.js" -o -name "*.json" -o -name "*.css" | 
+                     sort | xargs cat | sha256sum | cut -d' ' -f1)
+          echo "checksum=$CHECKSUM" >> $GITHUB_OUTPUT
+          echo "Documentation checksum: $CHECKSUM"
+
   build:
     runs-on: ubuntu-latest
+    needs: check-changes
+    if: needs.check-changes.outputs.docs-changed == 'true'
     defaults:
       run:
         working-directory: documentations
@@ -39,11 +72,30 @@ jobs:
           cache: 'npm'
           cache-dependency-path: documentations/package-lock.json
       
+      - name: Cache Docusaurus build
+        uses: actions/cache@v4
+        with:
+          path: |
+            documentations/.docusaurus
+            documentations/build
+          key: ${{ runner.os }}-docusaurus-build-${{ needs.check-changes.outputs.checksum }}
+          restore-keys: |
+            ${{ runner.os }}-docusaurus-build-
+      
       - name: Install dependencies
         run: npm ci
       
       - name: Build website
         run: npm run build
+        env:
+          # Ensure the CNAME file is included
+          DEPLOYMENT_BRANCH: gh-pages
+      
+      - name: Create deployment info
+        run: |
+          echo "Built at: $(date)" > build/build-info.txt
+          echo "Commit: ${{ github.sha }}" >> build/build-info.txt
+          echo "Checksum: ${{ needs.check-changes.outputs.checksum }}" >> build/build-info.txt
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
@@ -53,10 +105,23 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: https://${{ env.DOCS_DOMAIN }}
     runs-on: ubuntu-latest
     needs: build
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      
+      - name: Verify deployment
+        run: |
+          echo "Documentation deployed to: https://${{ env.DOCS_DOMAIN }}"
+          echo "Deployment ID: ${{ steps.deployment.outputs.page_id }}"
+          
+          # Wait for deployment to propagate
+          sleep 30
+          
+          # Check if site is accessible
+          curl -f -s -o /dev/null https://${{ env.DOCS_DOMAIN }} || {
+            echo "Warning: Site not immediately accessible. DNS propagation may take time."
+          }
