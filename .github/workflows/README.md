@@ -24,7 +24,7 @@ This directory contains simplified CI/CD workflows for django-rls.
   4. Commits and tags
   5. Publishes to PyPI (if enabled)
   6. Creates GitHub release
-- **Requirements**: `PYPI_API_TOKEN` secret
+- **Uses**: PyPI Trusted Publishing (no API token needed)
 
 ### deploy-docs.yml - Documentation
 - **Triggers**: Push to main or manual

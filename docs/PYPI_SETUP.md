@@ -1,20 +1,20 @@
 # PyPI Setup Guide
 
-## Prerequisites
+## Using Trusted Publishing (Recommended)
 
-1. Create a PyPI account at https://pypi.org/account/register/
-2. Generate an API token:
-   - Go to https://pypi.org/manage/account/token/
-   - Create a new API token with scope "Entire account" or project-specific
-   - Copy the token (starts with `pypi-`)
+This project uses PyPI's Trusted Publishing feature, which is more secure than API tokens.
 
-## GitHub Repository Setup
+### Setup (Already Done)
+1. PyPI has been configured with:
+   - Repository: `kdpisda/django-rls`
+   - Workflow: `release.yml`
+   - Environment: `release`
 
-1. Go to your repository settings: https://github.com/kdpisda/django-rls/settings/secrets/actions
-2. Click "New repository secret"
-3. Name: `PYPI_API_TOKEN`
-4. Value: Paste your PyPI token
-5. Click "Add secret"
+2. The GitHub workflow is configured with:
+   - `environment: release`
+   - `permissions: id-token: write`
+
+No API tokens or passwords needed!
 
 ## Publishing with GitHub Actions
 
