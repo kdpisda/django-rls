@@ -13,9 +13,10 @@ on:
           - major
           - pre
       pre_release_type:
-        description: 'Pre-release type (only for pre bump)'
+        description: 'Pre-release type (REQUIRED when version_bump is pre)'
         required: false
         type: choice
+        default: ''
         options:
           - ''
           - alpha
@@ -80,7 +81,12 @@ jobs:
       - name: Bump version
         id: bump
         run: |
-          if [ "${{ inputs.version_bump }}" == "pre" ] && [ -n "${{ inputs.pre_release_type }}" ]; then
+          if [ "${{ inputs.version_bump }}" == "pre" ]; then
+            if [ -z "${{ inputs.pre_release_type }}" ]; then
+              echo "Error: Pre-release type (alpha, beta, or rc) is required when using 'pre' bump type"
+              echo "Please re-run the workflow and select a pre-release type"
+              exit 1
+            fi
             python scripts/bump_version.py ${{ inputs.version_bump }} --pre-release ${{ inputs.pre_release_type }}
           else
             python scripts/bump_version.py ${{ inputs.version_bump }}
