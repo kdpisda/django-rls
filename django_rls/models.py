@@ -70,7 +70,8 @@ class RLSModel(models.Model, metaclass=RLSModelMeta):
         """Enable RLS for this model's table."""
         from django.db import connections
         
-        db_alias = cls._state.db or 'default'
+        # Models don't have _state, use default connection
+        db_alias = 'default'
         connection = connections[db_alias]
         
         with connection.schema_editor() as schema_editor:
@@ -94,7 +95,8 @@ class RLSModel(models.Model, metaclass=RLSModelMeta):
         """Disable RLS for this model's table."""
         from django.db import connections
         
-        db_alias = cls._state.db or 'default'
+        # Models don't have _state, use default connection
+        db_alias = 'default'
         connection = connections[db_alias]
         
         with connection.schema_editor() as schema_editor:
