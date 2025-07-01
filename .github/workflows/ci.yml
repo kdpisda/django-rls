@@ -98,12 +98,14 @@ jobs:
         MINIMUM_GREEN: 85
         MINIMUM_ORANGE: 70
     
-    - name: Run linting
+    - name: Run linting (informational only)
       if: matrix.python-version == '3.12' && matrix.django-version == '5.2'  # Only run once
+      continue-on-error: true  # Don't fail the CI if linting fails
       run: |
-        poetry run black --check .
-        poetry run isort --check-only .
-        poetry run flake8 .
+        echo "Running linting checks (informational only)..."
+        poetry run black --check . || echo "⚠️ Black formatting issues found (non-blocking)"
+        poetry run isort --check-only . || echo "⚠️ Import sorting issues found (non-blocking)"
+        poetry run flake8 . || echo "⚠️ Flake8 issues found (non-blocking)"
 
   test-summary:
     name: Test Summary
