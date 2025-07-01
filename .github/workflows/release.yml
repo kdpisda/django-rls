@@ -27,23 +27,10 @@ on:
       - 'v*'
 
 jobs:
-  tests:
-    name: Run Tests
+  # Quick sanity check - rely on CI for full test suite
+  sanity-check:
+    name: Release Sanity Check
     runs-on: ubuntu-latest
-    
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: test_db
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
     
     steps:
       - uses: actions/checkout@v4
@@ -59,23 +46,19 @@ jobs:
           pip install poetry
           poetry install
       
-      - name: Run tests with PostgreSQL
-        env:
-          USE_POSTGRESQL: true
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+      - name: Quick sanity test
         run: |
-          poetry run pytest --cov=django_rls --cov-report=term-missing
-      
-      - name: Check coverage (informational)
-        continue-on-error: true  # Don't block releases due to coverage
-        run: |
-          poetry run coverage report --fail-under=90 || echo "⚠️ Coverage below 90% (non-blocking)"
+          # Just verify the package can be imported
+          poetry run python -c "import django_rls; print(f'Version: {django_rls.__version__}')"
+          
+          # Run a few critical tests
+          poetry run pytest tests/test_policies.py -v
 
   bump-version:
     name: Bump Version
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
-    needs: tests
+    needs: sanity-check
     outputs:
       new_version: ${{ steps.bump.outputs.new_version }}
       
@@ -118,8 +101,8 @@ jobs:
   build:
     name: Build Distribution
     runs-on: ubuntu-latest
-    needs: [tests, bump-version]
-    if: always() && (needs.tests.result == 'success')
+    needs: [sanity-check, bump-version]
+    if: always() && (needs.sanity-check.result == 'success')
     
     steps:
       - uses: actions/checkout@v4

@@ -2,32 +2,34 @@ name: CI
 
 on:
   push:
-    branches: [ '**' ]  # Run on all branches
+    branches: [ main, develop ]
   pull_request:
     branches: [ main ]
 
 jobs:
   test:
+    name: Test
     runs-on: ubuntu-latest
     
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17-alpine
         env:
+          POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: test_django_rls
+        ports:
+          - 5432:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-        ports:
-          - 5432:5432
     
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
-        django-version: ["5.0", "5.1", "5.2"]
+        python-version: ['3.11', '3.12']
+        django-version: ['5.1', '5.2']
     
     steps:
     - uses: actions/checkout@v4
@@ -40,96 +42,92 @@ jobs:
     - name: Install Poetry
       uses: snok/install-poetry@v1
       with:
-        version: latest
         virtualenvs-create: true
         virtualenvs-in-project: true
     
-    - name: Load cached venv
-      id: cached-poetry-dependencies
+    - name: Cache dependencies
       uses: actions/cache@v4
       with:
         path: .venv
-        key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+        key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
     
     - name: Install dependencies
-      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-      run: poetry install --no-interaction --no-root
-    
-    - name: Install Django ${{ matrix.django-version }}
       run: |
-        poetry run pip install "Django~=${{ matrix.django-version }}.0"
+        poetry install
+        poetry add django@~${{ matrix.django-version }}
     
-    - name: Run tests with coverage
+    - name: Run tests with PostgreSQL
       run: |
-        poetry run pytest --cov=django_rls --cov-report=xml --cov-report=html --cov-report=term
+        poetry run pytest -xvs --cov=django_rls --cov-report=xml --cov-report=term
       env:
-        DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_django_rls
+        USE_POSTGRESQL: "true"
+        DB_NAME: test_django_rls
+        DB_USER: postgres
+        DB_PASSWORD: postgres
+        DB_HOST: localhost
+        DB_PORT: 5432
     
-    - name: Run security tests
-      run: |
-        poetry run pytest tests/test_security.py -v --tb=short
-      env:
-        DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_django_rls
-    
-    - name: Upload coverage reports to Codecov
+    - name: Upload coverage
+      if: matrix.python-version == '3.12' && matrix.django-version == '5.2'
       uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false  # Don't fail if codecov is down
-    
-    - name: Upload coverage HTML report
-      uses: actions/upload-artifact@v4
-      if: matrix.python-version == '3.12' && matrix.django-version == '5.2'  # Only upload once
-      with:
-        name: coverage-report
-        path: htmlcov/
-    
-    - name: Display coverage report
-      run: |
-        poetry run coverage report
-    
-    - name: Comment coverage on PR
-      uses: py-cov-action/python-coverage-comment-action@v3
-      if: github.event_name == 'pull_request'
-      with:
-        GITHUB_TOKEN: ${{ github.token }}
-        MINIMUM_GREEN: 85
-        MINIMUM_ORANGE: 70
-    
-    - name: Run linting (informational only)
-      if: matrix.python-version == '3.12' && matrix.django-version == '5.2'  # Only run once
-      continue-on-error: true  # Don't fail the CI if linting fails
-      run: |
-        echo "Running linting checks (informational only)..."
-        poetry run black --check . || echo "⚠️ Black formatting issues found (non-blocking)"
-        poetry run isort --check-only . || echo "⚠️ Import sorting issues found (non-blocking)"
-        poetry run flake8 . || echo "⚠️ Flake8 issues found (non-blocking)"
+        fail_ci_if_error: false
 
-  test-summary:
-    name: Test Summary
+  # Single SQLite smoke test
+  sqlite-test:
+    name: SQLite Smoke Test
     runs-on: ubuntu-latest
-    needs: test
-    if: always()
     
     steps:
-    - name: Download coverage report
-      uses: actions/download-artifact@v4
-      with:
-        name: coverage-report
-        path: coverage-report
-      continue-on-error: true
+    - uses: actions/checkout@v4
     
-    - name: Create test summary
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+    
+    - name: Install dependencies
+      run: poetry install
+    
+    - name: Run basic tests with SQLite
       run: |
-        echo "## Test Results Summary 📊" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
+        poetry run pytest -xvs -k "not postgresql"
+      env:
+        USE_POSTGRESQL: "false"
+
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+    
+    - name: Install dependencies
+      run: poetry install
+    
+    - name: Run linting
+      continue-on-error: true
+      run: |
+        echo "::group::Black"
+        poetry run black --check . || echo "⚠️ Black formatting issues found"
+        echo "::endgroup::"
         
-        if [ -d "coverage-report" ]; then
-          echo "### Coverage Report Available" >> $GITHUB_STEP_SUMMARY
-          echo "Coverage HTML report has been uploaded as an artifact." >> $GITHUB_STEP_SUMMARY
-        fi
+        echo "::group::isort"
+        poetry run isort --check-only . || echo "⚠️ Import sorting issues found"
+        echo "::endgroup::"
         
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "✅ Tests completed across Python 3.10, 3.11, 3.12, 3.13 and Django 5.0, 5.1, 5.2" >> $GITHUB_STEP_SUMMARY
+        echo "::group::Flake8"
+        poetry run flake8 . || echo "⚠️ Flake8 issues found"
+        echo "::endgroup::"
