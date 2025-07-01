@@ -83,13 +83,18 @@ def run_tests():
     """Run test suite."""
     print_status("Running tests...")
     
-    result = run_command("poetry run pytest -q --tb=short", capture=False, check=False)
-    if result is None:
+    try:
+        # Run tests and check exit code
+        result = subprocess.run(
+            ["poetry", "run", "pytest", "-q", "--tb=short"],
+            capture_output=False,
+            check=True
+        )
+        print_status("All tests passed", "success")
+        return True
+    except subprocess.CalledProcessError:
         print_status("Some tests failed", "warning")
         return False
-    
-    print_status("All tests passed", "success")
-    return True
 
 
 def check_coverage():
