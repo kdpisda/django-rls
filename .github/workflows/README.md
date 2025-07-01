@@ -12,16 +12,19 @@ This directory contains simplified CI/CD workflows for django-rls.
   - **lint**: Code quality checks (informational only, won't fail builds)
 - **Total test runs**: 5 (4 PostgreSQL + 1 SQLite)
 
-### release.yml - PyPI Release
-- **Triggers**: Manual dispatch or version tags
-- **Jobs**:
-  - **sanity-check**: Quick import test (no full test suite)
-  - **bump-version**: Updates version numbers
-  - **build**: Creates distribution packages
-  - **publish-testpypi**: Publishes to TestPyPI
-  - **test-installation**: Verifies installation from TestPyPI
-  - **publish-pypi**: Publishes to PyPI
-  - **create-release**: Creates GitHub release
+### release.yml - Release & PyPI Publishing
+- **Triggers**: Manual dispatch only
+- **Inputs**:
+  - **version_bump**: patch, minor, or major
+  - **publish_to_pypi**: Whether to publish to PyPI (default: true)
+- **Single job that**:
+  1. Bumps version
+  2. Runs tests
+  3. Builds package
+  4. Commits and tags
+  5. Publishes to PyPI (if enabled)
+  6. Creates GitHub release
+- **Requirements**: `PYPI_API_TOKEN` secret
 
 ### deploy-docs.yml - Documentation
 - **Triggers**: Push to main or manual
@@ -33,8 +36,8 @@ This directory contains simplified CI/CD workflows for django-rls.
 
 ## Design Principles
 
-1. **No redundant testing**: Tests run in CI, not repeated in release
-2. **Minimal version matrix**: Only test supported Python/Django combinations
+1. **Single release workflow**: One workflow for version bump, PyPI, and GitHub release
+2. **No redundant testing**: Tests run in CI, minimal tests in release
 3. **Fast feedback**: PostgreSQL-only tests (except one SQLite smoke test)
 4. **Non-blocking quality checks**: Linting and coverage are informational
-5. **Simple configuration**: Consistent environment variables and caching
+5. **Simple configuration**: Direct PyPI publishing with API token

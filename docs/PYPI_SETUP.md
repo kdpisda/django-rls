@@ -16,26 +16,28 @@
 4. Value: Paste your PyPI token
 5. Click "Add secret"
 
-## Publishing Options
+## Publishing with GitHub Actions
 
-### Option 1: Simple Direct Publish (Recommended)
-```bash
-# 1. Update version in django_rls/__version__.py
-# 2. Commit and push
-# 3. Go to Actions > Publish to PyPI
-# 4. Run workflow, type "yes" to confirm
-```
+1. Go to Actions → "Release"
+2. Click "Run workflow"
+3. Select:
+   - **version_bump**: patch, minor, or major
+   - **publish_to_pypi**: ✓ (checked)
+4. Click "Run workflow"
 
-### Option 2: Full Release Workflow
-```bash
-# 1. Go to Actions > Release to PyPI
-# 2. Choose version bump type
-# 3. Run workflow
-# Note: This requires fixing the trusted publishing setup
-```
+The workflow will:
+- Bump the version
+- Run tests
+- Build the package
+- Push changes and tag
+- Publish to PyPI
+- Create GitHub release
 
 ## Manual Publishing (Local)
 ```bash
+# Bump version
+python scripts/bump_version.py patch  # or minor/major
+
 # Build
 poetry build
 
@@ -44,6 +46,10 @@ twine check dist/*
 
 # Upload
 twine upload dist/*
+
+# Create git tag
+git tag -a v0.2.0 -m "Release v0.2.0"
+git push origin main --tags
 ```
 
 ## Verify Publication
