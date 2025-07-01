@@ -81,6 +81,22 @@ jobs:
       - name: Bump version
         id: bump
         run: |
+          # Validate required files exist
+          if [ ! -f "django_rls/__version__.py" ]; then
+            echo "Error: Version file not found at django_rls/__version__.py"
+            exit 1
+          fi
+          
+          if [ ! -f "pyproject.toml" ]; then
+            echo "Error: pyproject.toml not found"
+            exit 1
+          fi
+          
+          if [ ! -f "scripts/bump_version.py" ]; then
+            echo "Error: Bump version script not found"
+            exit 1
+          fi
+          
           if [ "${{ inputs.version_bump }}" == "pre" ]; then
             if [ -z "${{ inputs.pre_release_type }}" ]; then
               echo "Error: Pre-release type (alpha, beta, or rc) is required when using 'pre' bump type"
@@ -91,7 +107,7 @@ jobs:
           else
             python scripts/bump_version.py ${{ inputs.version_bump }}
           fi
-          NEW_VERSION=$(python -c "from django_rls.__version__ import __version__; print(__version__)")
+          NEW_VERSION=$(python -c "import sys; sys.path.insert(0, '.'); from django_rls.__version__ import __version__; print(__version__)")
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           
       - name: Commit version bump
@@ -101,8 +117,23 @@ jobs:
           
       - name: Create and push tag
         run: |
-          git tag -a "v${{ steps.bump.outputs.new_version }}" -m "Release v${{ steps.bump.outputs.new_version }}"
-          git push origin main --tags
+          # Create tag
+          if ! git tag -a "v${{ steps.bump.outputs.new_version }}" -m "Release v${{ steps.bump.outputs.new_version }}"; then
+            echo "Error: Failed to create tag"
+            exit 1
+          fi
+          
+          # Push branch changes first
+          if ! git push origin main; then
+            echo "Error: Failed to push branch changes"
+            exit 1
+          fi
+          
+          # Then push tag
+          if ! git push origin "v${{ steps.bump.outputs.new_version }}"; then
+            echo "Error: Failed to push tag"
+            exit 1
+          fi
 
   build:
     name: Build Distribution
@@ -172,12 +203,27 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           
-      - name: Wait for package availability
-        run: sleep 30
-        
-      - name: Install from TestPyPI
+      - name: Install from TestPyPI with retry
         run: |
-          pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple django-rls
+          MAX_ATTEMPTS=6
+          SLEEP_TIME=10
+          
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            echo "Attempt $i of $MAX_ATTEMPTS..."
+            
+            if pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple django-rls; then
+              echo "Successfully installed django-rls from TestPyPI"
+              break
+            else
+              if [ $i -eq $MAX_ATTEMPTS ]; then
+                echo "Failed to install after $MAX_ATTEMPTS attempts"
+                exit 1
+              fi
+              echo "Package not yet available, waiting ${SLEEP_TIME}s..."
+              sleep $SLEEP_TIME
+              SLEEP_TIME=$((SLEEP_TIME * 2))  # Exponential backoff
+            fi
+          done
           
       - name: Test import
         run: |
@@ -235,15 +281,21 @@ jobs:
           
           # Get commits since last tag
           LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          if [ -n "$LAST_TAG" ]; then
-            git log --pretty=format:"* %s by @%an in %h" $LAST_TAG..HEAD >> changelog.md
-          else
-            git log --pretty=format:"* %s by @%an in %h" >> changelog.md
-          fi
           
-          echo "" >> changelog.md
-          echo "" >> changelog.md
-          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${LAST_TAG}...v${{ steps.version.outputs.version }}" >> changelog.md
+          if [ -n "$LAST_TAG" ]; then
+            echo "### Changes since $LAST_TAG" >> changelog.md
+            git log --pretty=format:"* %s by @%an in %h" $LAST_TAG..HEAD >> changelog.md
+            echo "" >> changelog.md
+            echo "" >> changelog.md
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${LAST_TAG}...v${{ steps.version.outputs.version }}" >> changelog.md
+          else
+            echo "### Initial Release 🎉" >> changelog.md
+            echo "" >> changelog.md
+            echo "This is the first release of django-rls!" >> changelog.md
+            echo "" >> changelog.md
+            echo "### Recent commits:" >> changelog.md
+            git log --pretty=format:"* %s by @%an in %h" --max-count=20 >> changelog.md
+          fi
           
       - name: Create Release
         uses: softprops/action-gh-release@v2

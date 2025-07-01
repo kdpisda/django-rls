@@ -58,6 +58,9 @@ jobs:
     
     - name: Run tests with PostgreSQL
       run: |
+        # Verify PostgreSQL is accessible
+        pg_isready -h localhost -p 5432 || (echo "PostgreSQL is not ready" && exit 1)
+        
         poetry run pytest -xvs --cov=django_rls --cov-report=xml --cov-report=term
       env:
         USE_POSTGRESQL: "true"
