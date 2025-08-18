@@ -33,7 +33,7 @@ jobs:
       docs-changed: ${{ steps.filter.outputs.docs }}
       checksum: ${{ steps.checksum.outputs.checksum }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       
       - name: Check for documentation changes
         uses: dorny/paths-filter@v3
@@ -63,7 +63,7 @@ jobs:
         working-directory: documentations
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
