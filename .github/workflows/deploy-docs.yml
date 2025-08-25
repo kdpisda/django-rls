@@ -98,7 +98,7 @@ jobs:
           echo "Checksum: ${{ needs.check-changes.outputs.checksum }}" >> build/build-info.txt
       
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: documentations/build
 
