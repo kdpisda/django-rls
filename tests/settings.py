@@ -63,28 +63,20 @@ TEMPLATES = [
 
 
 # Database configuration
-# Use environment variable to switch between SQLite and PostgreSQL
-USE_POSTGRESQL = os.environ.get('USE_POSTGRESQL', '').lower() in ('true', '1', 'yes')
-
-if USE_POSTGRESQL:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django_rls.backends.postgresql',
-            'NAME': os.environ.get('DB_NAME', 'test_django_rls'),
-            'USER': os.environ.get('DB_USER', 'postgres'),
-            'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
-            'HOST': os.environ.get('DB_HOST', 'localhost'),
-            'PORT': os.environ.get('DB_PORT', '5432'),
+# Strictly use PostgreSQL as per user request
+DATABASES = {
+    'default': {
+        'ENGINE': 'django_rls.backends.postgresql',
+        'NAME': os.environ.get('DB_NAME', 'postgres'),  # Default 'postgres' db exists in container
+        'USER': os.environ.get('DB_USER', 'rls_test_user'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'testpass'),
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
+        'TEST': {
+            'NAME': 'test_django_rls',
         }
     }
-else:
-    # Use SQLite for basic tests that don't require PostgreSQL
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': ':memory:',
-        }
-    }
+}
 
 
 # Password validation

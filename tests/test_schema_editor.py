@@ -70,7 +70,7 @@ class TestRLSDatabaseSchemaEditor(TestCase):
         assert 'AS PERMISSIVE' in call_args
         assert 'FOR ALL' in call_args
         assert 'TO public' in call_args
-        assert 'USING (owner_id = current_setting(\'rls.user_id\')::integer)' in call_args
+        assert "USING (owner_id = NULLIF(current_setting('rls.user_id', true), '')::integer)" in call_args
     
     def test_create_tenant_policy(self):
         """Test creating a tenant-based policy."""
@@ -82,7 +82,7 @@ class TestRLSDatabaseSchemaEditor(TestCase):
         self.editor.create_policy(model, policy)
         
         call_args = self.editor.execute.call_args[0][0]
-        assert 'USING (organization_id = current_setting(\'rls.tenant_id\')::integer)' in call_args
+        assert "USING (organization_id = NULLIF(current_setting('rls.tenant_id', true), '')::integer)" in call_args
     
     def test_create_custom_policy(self):
         """Test creating a custom policy."""

@@ -60,7 +60,7 @@ class TestTenantPolicy(TestCase):
         policy = TenantPolicy('test_policy', tenant_field='company')
         
         sql = policy.get_sql_expression()
-        assert sql == "company_id = current_setting('rls.tenant_id')::integer"
+        assert sql == "company_id = NULLIF(current_setting('rls.tenant_id', true), '')::integer"
     
     def test_tenant_policy_requires_field(self):
         """Test that tenant_field is required."""
@@ -96,7 +96,7 @@ class TestUserPolicy(TestCase):
         
         assert policy.user_field == 'owner'
         sql = policy.get_sql_expression()
-        assert sql == "owner_id = current_setting('rls.user_id')::integer"
+        assert sql == "owner_id = NULLIF(current_setting('rls.user_id', true), '')::integer"
     
     def test_user_policy_expressions(self):
         """Test USING vs WITH CHECK expressions."""

@@ -35,7 +35,7 @@ class TestRLSContextMiddleware(TestCase):
         middleware(request)
         
         # Verify set_rls_context was called for user
-        mock_set_rls_context.assert_any_call('user_id', 123, is_local=True)
+        mock_set_rls_context.assert_any_call('user_id', 123, is_local=False)
     
     @patch('django_rls.db.functions.set_rls_context')
     def test_anonymous_user_context(self, mock_set_rls_context):
@@ -57,9 +57,9 @@ class TestRLSContextMiddleware(TestCase):
         assert mock_set_rls_context.call_count >= 2
         
         # Check that user_id was cleared
-        mock_set_rls_context.assert_any_call('user_id', '', is_local=True)
+        mock_set_rls_context.assert_any_call('user_id', '', is_local=False)
         # Check that tenant_id was cleared
-        mock_set_rls_context.assert_any_call('tenant_id', '', is_local=True)
+        mock_set_rls_context.assert_any_call('tenant_id', '', is_local=False)
     
     @patch('django_rls.db.functions.set_rls_context')
     def test_tenant_context_from_request(self, mock_set_rls_context):
@@ -78,7 +78,7 @@ class TestRLSContextMiddleware(TestCase):
         middleware(request)
         
         # Verify set_rls_context was called for tenant
-        mock_set_rls_context.assert_any_call('tenant_id', 456, is_local=True)
+        mock_set_rls_context.assert_any_call('tenant_id', 456, is_local=False)
     
     @patch('django_rls.db.functions.set_rls_context')
     def test_tenant_context_from_session(self, mock_set_rls_context):
@@ -99,4 +99,4 @@ class TestRLSContextMiddleware(TestCase):
         middleware(request)
         
         # Verify set_rls_context was called for tenant
-        mock_set_rls_context.assert_any_call('tenant_id', 789, is_local=True)
+        mock_set_rls_context.assert_any_call('tenant_id', 789, is_local=False)

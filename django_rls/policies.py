@@ -81,7 +81,7 @@ class TenantPolicy(BasePolicy):
     
     def get_sql_expression(self) -> str:
         """Generate SQL expression for tenant-based filtering."""
-        return f"{self.tenant_field}_id = current_setting('rls.tenant_id')::integer"
+        return f"{self.tenant_field}_id = NULLIF(current_setting('rls.tenant_id', true), '')::integer"
 
 
 class UserPolicy(BasePolicy):
@@ -99,7 +99,7 @@ class UserPolicy(BasePolicy):
     
     def get_sql_expression(self) -> str:
         """Generate SQL expression for user-based filtering."""
-        return f"{self.user_field}_id = current_setting('rls.user_id')::integer"
+        return f"{self.user_field}_id = NULLIF(current_setting('rls.user_id', true), '')::integer"
 
 
 class CustomPolicy(BasePolicy):

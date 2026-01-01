@@ -20,10 +20,11 @@ class RLSContextMiddleware:
         # Set RLS context before processing request
         self._set_rls_context(request)
         
-        response = self.get_response(request)
-        
-        # Clear RLS context after processing
-        self._clear_rls_context()
+        try:
+            response = self.get_response(request)
+        finally:
+            # Clear RLS context after processing, even if exception occurs
+            self._clear_rls_context()
         
         return response
     
@@ -33,19 +34,19 @@ class RLSContextMiddleware:
         
         # Set user context
         if hasattr(request, 'user') and not isinstance(request.user, AnonymousUser):
-            set_rls_context('user_id', request.user.id, is_local=True)
+            set_rls_context('user_id', request.user.id, is_local=False)
         
         # Set tenant context if available
         tenant_id = self._get_tenant_id(request)
         if tenant_id:
-            set_rls_context('tenant_id', tenant_id, is_local=True)
+            set_rls_context('tenant_id', tenant_id, is_local=False)
     
     def _clear_rls_context(self) -> None:
         """Clear RLS context variables."""
         from .db.functions import set_rls_context
         
-        set_rls_context('user_id', '', is_local=True)
-        set_rls_context('tenant_id', '', is_local=True)
+        set_rls_context('user_id', '', is_local=False)
+        set_rls_context('tenant_id', '', is_local=False)
     
     def _get_tenant_id(self, request: HttpRequest) -> Optional[int]:
         """Extract tenant ID from request."""

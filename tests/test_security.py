@@ -109,7 +109,7 @@ class TestSQLInjectionPrevention(TestCase):
         # Check that parameterized query was used
         mock_cursor.execute.assert_called_with(
             "SELECT set_config(%s, %s, %s)",
-            ['rls.user_id', malicious_user_id, True]
+            ['rls.user_id', malicious_user_id, False]
         )
 
 
