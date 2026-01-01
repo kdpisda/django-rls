@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2026-01-01
 
 ### Added
+- **Django 6.0 Support**: Full compatibility with the upcoming Django 6.0 release.
 - **Pythonic Policies**: Define RLS policies using standard Django `Q` objects and `ModelPolicy` class.
 - **Context Processors**: Support for dynamic RLS context variables via `RLS_CONTEXT_PROCESSORS` setting.
 - **Flexible User Models**: Full support for custom User models, including UUID primary keys.

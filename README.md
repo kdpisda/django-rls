@@ -6,7 +6,7 @@
 [![Documentation](https://github.com/kdpisda/django-rls/actions/workflows/deploy-docs.yml/badge.svg)](https://django-rls.com)
 [![codecov](https://codecov.io/gh/kdpisda/django-rls/branch/main/graph/badge.svg)](https://codecov.io/gh/kdpisda/django-rls)
 [![Python Version](https://img.shields.io/pypi/pyversions/django-rls)](https://pypi.org/project/django-rls/)
-[![Django Version](https://img.shields.io/badge/django-5.0%20%7C%205.1%20%7C%205.2-green.svg)](https://www.djangoproject.com/)
+[![Django Version](https://img.shields.io/badge/django-5.0%20%7C%205.1%20%7C%205.2%20%7C%206.0-green.svg)](https://www.djangoproject.com/)
 [![License](https://img.shields.io/pypi/l/django-rls)](LICENSE)
 
 A Django package that provides PostgreSQL Row Level Security (RLS) capabilities at the database level.
@@ -21,7 +21,10 @@ See [SECURITY.md](.github/SECURITY.md).
 
 - 🔒 Database-level Row Level Security using PostgreSQL RLS
 - 🏢 Tenant-based and user-based policies
-- 🔧 Django 5.0, 5.1, and 5.2 (LTS) support
+- 🐍 **Pythonic Policies**: Define policies using standard Django `Q` objects
+- 🌳 **Hierarchical RLS**: Support for recursive CTEs and nested organizations
+- ⚡ **Context Processors**: Inject dynamic context variables (e.g. user IP, session data)
+- 🔧 Django 5.0, 5.1, 5.2 (LTS), and 6.0 support
 - 🧪 Comprehensive test coverage
 - 📖 Extensible policy system
 - ⚡ Performance optimized
@@ -29,16 +32,23 @@ See [SECURITY.md](.github/SECURITY.md).
 ## Quick Start
 
 ```python
+from django.db import models
+from django.db.models import Q
 from django_rls.models import RLSModel
-from django_rls.policies import TenantPolicy, UserPolicy
+from django_rls.policies import ModelPolicy, RLS
 
-class TenantAwareModel(RLSModel):
+class Project(RLSModel):
     name = models.CharField(max_length=100)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
-    
+    owner = models.ForeignKey(User, on_delete=models.CASCADE)
+    is_public = models.BooleanField(default=False)
+
     class Meta:
         rls_policies = [
-            TenantPolicy('tenant_policy', tenant_field='tenant'),
+            # Pythonic Policy: Owner OR Public
+            ModelPolicy(
+                'access_policy',
+                filters=Q(owner=RLS.user_id()) | Q(is_public=True)
+            ),
         ]
 ```
 
@@ -59,7 +69,7 @@ pip install git+https://github.com/kdpisda/django-rls.git
 ### Requirements
 
 - Python 3.10, 3.11, 3.12, or 3.13
-- Django 5.0, 5.1, or 5.2 (LTS)
+- Django 5.0, 5.1, 5.2 (LTS), or 6.0
 - PostgreSQL 12 or higher (tested with PostgreSQL 17)
 
 Add to your Django settings:
