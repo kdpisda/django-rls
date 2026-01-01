@@ -33,7 +33,44 @@ By default, the middleware sets:
 - `rls.user_id`: The ID of the authenticated user
 - `rls.tenant_id`: Extracted from the request (if available)
 
-## Customizing Context Extraction
+## Context Processors (Recommended)
+
+The easiest way to inject custom context variables is using **Context Processors**. This avoids the need to subclass the middleware entirely.
+
+### 1. Define a Processor
+
+Create a function that accepts a `request` and returns a dictionary of variables to set.
+
+```python
+# myapp/context.py
+def user_info(request):
+    if not request.user.is_authenticated:
+        return {}
+
+    return {
+        'user_email': request.user.email,
+        'user_is_staff': request.user.is_staff
+    }
+```
+
+### 2. Register in Settings
+
+Add the path to your function in `settings.py`:
+
+```python
+RLS_CONTEXT_PROCESSORS = [
+    'myapp.context.user_info',
+    # 'myapp.context.other_info',
+]
+```
+
+The middleware will automatically execute these functions and set the returned key-value pairs as session variables (e.g., `rls.user_email`, `rls.user_is_staff`).
+
+---
+
+## Customizing Context Extraction (Advanced)
+
+If you need deeper control (e.g., extracting tenant from a subdomain), you can subclass the middleware.
 
 ### Custom Tenant Detection
 
@@ -53,7 +90,7 @@ class CustomRLSMiddleware(RLSContextMiddleware):
         # Custom logic to extract tenant
         if hasattr(request, 'organization'):
             return request.organization.id
-        
+
         # From subdomain
         host = request.get_host()
         subdomain = host.split('.')[0]
@@ -75,7 +112,7 @@ class ExtendedRLSMiddleware(RLSContextMiddleware):
     def _set_rls_context(self, request):
         # Call parent to set user_id and tenant_id
         super()._set_rls_context(request)
-        
+
         # Add custom context
         if hasattr(request.user, 'profile'):
             profile = request.user.profile
@@ -91,7 +128,7 @@ Use the context variables in your policies:
 ```python
 class RegionalData(RLSModel):
     region = models.CharField(max_length=50)
-    
+
     class Meta:
         rls_policies = [
             CustomPolicy(
@@ -131,14 +168,14 @@ class CachedTenantMiddleware(RLSContextMiddleware):
     def _get_tenant_id(self, request):
         if not request.user.is_authenticated:
             return None
-            
+
         cache_key = f'user_tenant_{request.user.id}'
         tenant_id = cache.get(cache_key)
-        
+
         if tenant_id is None:
             tenant_id = request.user.profile.tenant_id
             cache.set(cache_key, tenant_id, 300)  # Cache for 5 minutes
-            
+
         return tenant_id
 ```
 
@@ -154,12 +191,12 @@ class MyTestCase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('testuser')
         self.tenant = Tenant.objects.create(name='Test Tenant')
-        
+
     def test_with_context(self):
         # Manually set context for tests
         set_rls_context('user_id', self.user.id)
         set_rls_context('tenant_id', self.tenant.id)
-        
+
         # Your test code here
         documents = Document.objects.all()
         # ...

@@ -17,7 +17,7 @@ from django_rls.models import RLSModel
 
 class MyModel(RLSModel):
     # Your fields here
-    
+
     class Meta:
         rls_policies = [
             # List of policies
@@ -96,6 +96,39 @@ TenantPolicy(
 - `operation` (str) - SQL operation (default: 'ALL')
 - `permissive` (bool) - Policy type (default: True)
 
+- `permissive` (bool) - Policy type (default: True)
+
+### ModelPolicy
+
+**Recommended** policy type using Django `Q` objects.
+
+```python
+from django_rls.policies import ModelPolicy
+from django_rls.policies import RLS
+from django.db.models import Q
+
+ModelPolicy(
+    name='pythonic_policy',
+    filters=Q(owner=RLS.user_id()) | Q(is_public=True)
+)
+```
+
+**Parameters:**
+- `name` (str) - Policy name
+- `filters` (Q) - Django Q object defining the access conditions
+- `annotations` (dict) - Optional annotations for complex logic (e.g. `RLS.context`)
+- `operation` (str) - SQL operation (default: 'ALL')
+- `permissive` (bool) - Policy type (default: True)
+
+### RLS Helper
+
+Helper class for accessing RLS context variables in `Q` objects.
+
+**Methods:**
+- `RLS.user_id()` - Returns expression for current user ID (supports Integer and UUID)
+- `RLS.tenant_id()` - Returns expression for current tenant ID
+- `RLS.context(name, output_field=None)` - Returns expression for arbitrary context variable
+
 ### CustomPolicy
 
 Policy with custom SQL expression.
@@ -143,7 +176,7 @@ class CustomRLSMiddleware(RLSContextMiddleware):
     def _get_tenant_id(self, request):
         # Custom tenant extraction logic
         return tenant_id
-    
+
     def _set_rls_context(self, request):
         super()._set_rls_context(request)
         # Set additional context
@@ -255,7 +288,7 @@ from django_rls.policies import UserPolicy
 
 operations = [
     CreatePolicy(
-        'myapp', 
+        'myapp',
         'MyModel',
         UserPolicy('owner_policy', user_field='owner')
     ),
@@ -318,10 +351,10 @@ class MyTest(RLSTestMixin, TestCase):
     def test_something(self):
         with self.disable_rls(Model):
             # Test with RLS disabled
-            
+
         with self.as_user(user):
             # Test with specific user context
-            
+
         with self.with_context(user_id=1, tenant_id=2):
             # Test with custom context
 ```
@@ -341,11 +374,25 @@ Optional settings dict for Django RLS configuration.
 ```python
 DJANGO_RLS = {
     'DEFAULT_SCHEMA_EDITOR': 'django_rls.backends.postgresql.RLSDatabaseSchemaEditor',
-    'CONTEXT_PROCESSOR': 'myapp.rls.custom_context_processor',
+    'CONTEXT_PROCESSOR': 'myapp.rls.custom_context_processor', # Deprecated
     'AUTO_ENABLE_RLS': True,  # Enable RLS automatically in migrations
     'POLICY_NAMING_CONVENTION': '{model_name}_{policy_type}_policy',
 }
 ```
+
+### RLS_CONTEXT_PROCESSORS
+
+List of dotted paths to callables that return a dictionary of context variables to set in Postgres.
+
+```python
+# settings.py
+RLS_CONTEXT_PROCESSORS = [
+    'myapp.context.user_email_processor',
+    'myapp.context.subscription_status_processor',
+]
+```
+
+Each processor receives the `request` object and should return a dict or None.
 
 ## Signals
 

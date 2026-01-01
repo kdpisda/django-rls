@@ -10,7 +10,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:17-alpine
@@ -25,42 +25,42 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    
+
     strategy:
       matrix:
         python-version: ['3.11', '3.12']
-        django-version: ['5.1', '5.2']
-    
+        django-version: ['5.1', '5.2', '6.0']
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-    
+
     - name: Install Poetry
       uses: snok/install-poetry@v1
       with:
         virtualenvs-create: true
         virtualenvs-in-project: true
-    
+
     - name: Cache dependencies
       uses: actions/cache@v4
       with:
         path: .venv
         key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-    
+
     - name: Install dependencies
       run: |
         poetry install
         poetry add django@~${{ matrix.django-version }}
-    
+
     - name: Run tests with PostgreSQL
       run: |
         # Verify PostgreSQL is accessible
         pg_isready -h localhost -p 5432 || (echo "PostgreSQL is not ready" && exit 1)
-        
+
         poetry run pytest -xvs --cov=django_rls --cov-report=xml --cov-report=term
       env:
         USE_POSTGRESQL: "true"
@@ -69,7 +69,7 @@ jobs:
         DB_PASSWORD: postgres
         DB_HOST: localhost
         DB_PORT: 5432
-    
+
     - name: Upload coverage
       if: matrix.python-version == '3.12' && matrix.django-version == '5.2'
       uses: codecov/codecov-action@v4
@@ -81,21 +81,21 @@ jobs:
   sqlite-test:
     name: SQLite Smoke Test
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.12'
-    
+
     - name: Install Poetry
       uses: snok/install-poetry@v1
-    
+
     - name: Install dependencies
       run: poetry install
-    
+
     - name: Run basic tests with SQLite
       run: |
         poetry run pytest -xvs -k "not postgresql"
@@ -105,32 +105,32 @@ jobs:
   lint:
     name: Code Quality
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.12'
-    
+
     - name: Install Poetry
       uses: snok/install-poetry@v1
-    
+
     - name: Install dependencies
       run: poetry install
-    
+
     - name: Run linting
       continue-on-error: true
       run: |
         echo "::group::Black"
         poetry run black --check . || echo "⚠️ Black formatting issues found"
         echo "::endgroup::"
-        
+
         echo "::group::isort"
         poetry run isort --check-only . || echo "⚠️ Import sorting issues found"
         echo "::endgroup::"
-        
+
         echo "::group::Flake8"
         poetry run flake8 . || echo "⚠️ Flake8 issues found"
         echo "::endgroup::"

@@ -2,6 +2,8 @@
 sidebar_position: 1
 ---
 
+import { FaLock, FaBuilding, FaTools, FaBolt, FaVial, FaBook } from 'react-icons/fa';
+
 # Introduction
 
 Django RLS provides PostgreSQL Row Level Security (RLS) capabilities for Django applications, implementing true database-level security rather than application-layer filtering.
@@ -22,12 +24,12 @@ Row Level Security (RLS) is a PostgreSQL feature that enables fine-grained acces
 
 ## Key Features
 
-- 🔒 True database-level Row Level Security
-- 🏢 Built-in tenant-based and user-based policies
-- 🔧 Extensible policy system for custom rules
-- ⚡ Automatic context management via middleware
-- 🧪 Comprehensive test utilities
-- 📖 Django-style API following DRF patterns
+- <FaLock />&nbsp; True database-level Row Level Security
+- <FaBuilding />&nbsp; Built-in tenant-based and user-based policies
+- <FaTools />&nbsp; Extensible policy system for custom rules
+- <FaBolt />&nbsp; Automatic context management via middleware
+- <FaVial />&nbsp; Comprehensive test utilities
+- <FaBook />&nbsp; Django-style API following DRF patterns
 
 ## How It Works
 
@@ -46,7 +48,7 @@ class Document(RLSModel):
     title = models.CharField(max_length=200)
     content = models.TextField()
     owner = models.ForeignKey(User, on_delete=models.CASCADE)
-    
+
     class Meta:
         rls_policies = [
             UserPolicy('owner_policy', user_field='owner'),

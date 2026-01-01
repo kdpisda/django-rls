@@ -15,7 +15,7 @@ In a typical Django application, you need to remember to filter querysets:
 def task_list(request):
     # WRONG: Shows all tasks to everyone
     tasks = Task.objects.all()
-    
+
     # RIGHT: Must remember to filter
     tasks = Task.objects.filter(owner=request.user)
     return render(request, 'tasks.html', {'tasks': tasks})
@@ -27,11 +27,14 @@ With Django RLS, filtering happens automatically at the database level:
 
 ### 1. Define Your Model
 
+Use `ModelPolicy` to define rules using standard Django `Q` objects:
+
 ```python
 from django.db import models
 from django.contrib.auth.models import User
+from django.db.models import Q
 from django_rls.models import RLSModel
-from django_rls.policies import UserPolicy
+from django_rls.policies import ModelPolicy, RLS
 
 class Task(RLSModel):
     title = models.CharField(max_length=200)
@@ -39,13 +42,17 @@ class Task(RLSModel):
     completed = models.BooleanField(default=False)
     owner = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         ordering = ['-created_at']
         rls_policies = [
-            UserPolicy('owner_policy', user_field='owner'),
+            # Only allow access to the owner
+            ModelPolicy(
+                'owner_policy',
+                filters=Q(owner=RLS.user_id())
+            )
         ]
-    
+
     def __str__(self):
         return self.title
 ```
@@ -98,14 +105,14 @@ python manage.py enable_rls
 
 ## What's Happening Behind the Scenes
 
-When RLS is enabled, PostgreSQL automatically adds WHERE clauses:
+When RLS is enabled, `django-rls` translates your `Q` objects into SQL. PostgreSQL then automatically adds WHERE clauses to every query:
 
 ```sql
 -- What you write:
 SELECT * FROM myapp_task;
 
 -- What PostgreSQL executes for user_id=1:
-SELECT * FROM myapp_task 
+SELECT * FROM myapp_task
 WHERE owner_id = current_setting('rls.user_id')::integer;
 ```
 
@@ -116,18 +123,20 @@ WHERE owner_id = current_setting('rls.user_id')::integer;
 ```python
 from django.db import models
 from django.contrib.auth.models import User
+from django.db.models import Q
 from django_rls.models import RLSModel
-from django_rls.policies import UserPolicy
+from django_rls.policies import ModelPolicy, RLS
 
 class Project(RLSModel):
     name = models.CharField(max_length=100)
     description = models.TextField()
     owner = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         rls_policies = [
-            UserPolicy('owner_policy', user_field='owner'),
+            # Owner access
+            ModelPolicy('owner_access', filters=Q(owner=RLS.user_id()))
         ]
 
 class Task(RLSModel):
@@ -136,10 +145,11 @@ class Task(RLSModel):
     assigned_to = models.ForeignKey(User, on_delete=models.CASCADE)
     completed = models.BooleanField(default=False)
     due_date = models.DateField(null=True, blank=True)
-    
+
     class Meta:
         rls_policies = [
-            UserPolicy('assigned_policy', user_field='assigned_to'),
+            # Assigned user access
+            ModelPolicy('assigned_access', filters=Q(assigned_to=RLS.user_id()))
         ]
 ```
 
@@ -165,26 +175,6 @@ def dashboard(request):
     return render(request, 'dashboard.html', context)
 ```
 
-### API Views (api.py)
-
-```python
-from rest_framework import viewsets
-from .models import Task, Project
-from .serializers import TaskSerializer, ProjectSerializer
-
-class ProjectViewSet(viewsets.ModelViewSet):
-    # No need for get_queryset() filtering!
-    queryset = Project.objects.all()
-    serializer_class = ProjectSerializer
-
-class TaskViewSet(viewsets.ModelViewSet):
-    queryset = Task.objects.all()
-    serializer_class = TaskSerializer
-    
-    def perform_create(self, serializer):
-        serializer.save(assigned_to=self.request.user)
-```
-
 ## Common Patterns
 
 ### Shared Access
@@ -196,22 +186,16 @@ class SharedDocument(RLSModel):
     title = models.CharField(max_length=200)
     owner = models.ForeignKey(User, on_delete=models.CASCADE)
     shared_with = models.ManyToManyField(User, related_name='shared_docs')
-    
+
     class Meta:
         rls_policies = [
-            # Owner can access
-            UserPolicy('owner_policy', user_field='owner'),
-            # Shared users can access
-            CustomPolicy(
-                'shared_policy',
-                expression="""
-                    id IN (
-                        SELECT shareddocument_id 
-                        FROM myapp_shareddocument_shared_with 
-                        WHERE user_id = current_setting('rls.user_id')::integer
-                    )
-                """
-            ),
+            ModelPolicy(
+                'access_policy',
+                filters=(
+                    Q(owner=RLS.user_id()) |
+                    Q(shared_with=RLS.user_id()) # Automatic EXISTS subquery!
+                )
+            )
         ]
 ```
 
@@ -223,19 +207,16 @@ Managers can see their team's data:
 class TeamTask(RLSModel):
     title = models.CharField(max_length=200)
     assigned_to = models.ForeignKey(User, on_delete=models.CASCADE)
-    
+
     class Meta:
         rls_policies = [
-            CustomPolicy(
+            ModelPolicy(
                 'team_policy',
-                expression="""
-                    assigned_to_id = current_setting('rls.user_id')::integer
-                    OR assigned_to_id IN (
-                        SELECT id FROM auth_user 
-                        WHERE manager_id = current_setting('rls.user_id')::integer
-                    )
-                """
-            ),
+                filters=(
+                    Q(assigned_to=RLS.user_id()) |
+                    Q(assigned_to__manager=RLS.user_id()) # Joined field lookup!
+                )
+            )
         ]
 ```
 
@@ -244,26 +225,18 @@ class TeamTask(RLSModel):
 Records accessible only during certain periods:
 
 ```python
+from django.db.models.functions import Now
+
 class TimedContent(RLSModel):
     title = models.CharField(max_length=200)
     available_from = models.DateTimeField()
     available_until = models.DateTimeField()
-    
+
     class Meta:
         rls_policies = [
-            CustomPolicy(
+            ModelPolicy(
                 'time_policy',
-                expression="""
-                    CURRENT_TIMESTAMP BETWEEN available_from AND available_until
-                """
-            ),
+                filters=Q(available_from__lte=Now()) & Q(available_until__gte=Now())
+            )
         ]
 ```
-
-## Benefits
-
-1. **Security by Default**: Can't accidentally expose data
-2. **Simpler Code**: No need to filter in every view
-3. **Consistency**: Same rules everywhere (views, API, admin)
-4. **Performance**: Database-optimized filtering
-5. **Auditability**: Security rules in one place
