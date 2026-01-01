@@ -96,7 +96,7 @@ def get_rls_context(key, default=None):
         return result[0] if result and result[0] else default
 
 
-def set_rls_context(key, value, is_local=True):
+def set_rls_context(key, value, is_local=False):
     """Set RLS context value."""
     with connection.cursor() as cursor:
         cursor.execute(

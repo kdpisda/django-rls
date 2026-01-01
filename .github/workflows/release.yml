@@ -21,6 +21,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     environment: release  # This matches the "release" environment in your PyPI config
     permissions:
       contents: write  # For pushing commits and creating releases
@@ -58,8 +59,13 @@ jobs:
     - name: Bump version
       id: bump
       run: |
-        python scripts/bump_version.py ${{ inputs.version_bump }}
-        NEW_VERSION=$(python -c "import sys; sys.path.insert(0, '.'); from django_rls.__version__ import __version__; print(__version__)")
+        # Bump version in pyproject.toml
+        poetry version ${{ inputs.version_bump }}
+        NEW_VERSION=$(poetry version -s)
+        
+        # Update __version__.py
+        python -c "from pathlib import Path; f = Path('django_rls/__version__.py'); content = f.read_text(); import re; f.write_text(re.sub(r'__version__\s*=\s*[\"\'][^\"\']+[\"\']', f'__version__ = \"{NEW_VERSION}\"', content))"
+        
         echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
         echo "New version: $NEW_VERSION"
     

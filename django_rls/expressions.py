@@ -72,8 +72,9 @@ class RLSExpression:
     def _format_value(self, value) -> str:
         """Format a value for SQL."""
         if isinstance(value, str):
-            # In production, use proper parameterization
-            return f"'{value}'"
+            # Escape single quotes to prevent SQL injection
+            safe_value = value.replace("'", "''")
+            return f"'{safe_value}'"
         elif isinstance(value, bool):
             return 'TRUE' if value else 'FALSE'
         elif value is None:

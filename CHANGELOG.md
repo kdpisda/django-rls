@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-01-01
+
+### Added
+- **Django 6.0 Support**: Full compatibility with the upcoming Django 6.0 release.
+- **Pythonic Policies**: Define RLS policies using standard Django `Q` objects and `ModelPolicy` class.
+- **Context Processors**: Support for dynamic RLS context variables via `RLS_CONTEXT_PROCESSORS` setting.
+- **Flexible User Models**: Full support for custom User models, including UUID primary keys.
+- **Joined Field Support**: Automatic handling of related field lookups (e.g., `company__name`) in policies by converting them to subqueries.
+- **Enterprise Features**: Examples and support for hierarchical (recursive) policies and granular ACLs.
+- **Helpers**: `RLS.user_id()`, `RLS.tenant_id()`, and `RLS.context()` helpers for easy policy definition.
+
 ## [0.1.0] - 2025-01-30
 
 ### Added

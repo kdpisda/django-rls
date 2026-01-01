@@ -80,8 +80,20 @@ class RLSModel(models.Model, metaclass=RLSModelMeta):
                 schema_editor.enable_rls(cls)
                 
                 # Create policies
+                from django.db import transaction, utils
+                
                 for policy in cls._rls_policies:
-                    schema_editor.create_policy(cls, policy)
+                    try:
+                        # Try to create. Use atomic to allow recovery if it fails.
+                        with transaction.atomic():
+                            schema_editor.create_policy(cls, policy)
+                    except utils.ProgrammingError as e:
+                        # If policy exists, update it
+                        if "already exists" in str(e):
+                            logger.info(f"Policy {policy.name} exists, updating definition.")
+                            schema_editor.alter_policy(cls, policy)
+                        else:
+                            raise
                     
                 logger.info(f"RLS enabled for {cls._meta.db_table}")
             else:
