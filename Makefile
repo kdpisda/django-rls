@@ -37,33 +37,18 @@ docker-reset: ## Reset PostgreSQL (delete all data)
 docker-logs: ## Show PostgreSQL logs
 	docker-compose logs -f postgres
 
-.PHONY: docker-test-up
-docker-test-up: ## Start test PostgreSQL (lightweight, port 5433)
-	docker-compose up -d test-postgres
-	@echo "Waiting for test PostgreSQL to be ready..."
-	@sleep 2
-	@docker-compose exec -T test-postgres pg_isready -U postgres || (echo "Test PostgreSQL not ready" && exit 1)
-	@echo "Test PostgreSQL is ready on port 5433!"
-
-.PHONY: docker-test-down
-docker-test-down: ## Stop test PostgreSQL
-	docker-compose stop test-postgres
-
 # Database commands
 .PHONY: db-shell
 db-shell: ## Open PostgreSQL shell
-	docker-compose exec postgres psql -U postgres -d test_django_rls
+	docker-compose exec postgres psql -U postgres
 
-.PHONY: db-create
-db-create: ## Create test database
-	docker-compose exec postgres createdb -U postgres test_django_rls || echo "Database already exists"
+.PHONY: db-create-user
+db-create-user: ## Create test user for RLS tests
+	docker-compose exec -T postgres psql -U postgres -c "CREATE USER rls_test_user WITH PASSWORD 'testpass' CREATEDB;" || echo "User already exists"
 
-.PHONY: db-drop
-db-drop: ## Drop test database
-	docker-compose exec postgres dropdb -U postgres test_django_rls || echo "Database doesn't exist"
-
-.PHONY: db-reset
-db-reset: db-drop db-create ## Reset test database
+.PHONY: db-setup
+db-setup: docker-up db-create-user ## Setup database with test user
+	@echo "Database setup complete!"
 
 # Development setup
 .PHONY: install
@@ -97,9 +82,8 @@ test-failed: ## Re-run failed tests
 	poetry run pytest --lf
 
 .PHONY: test-docker
-test-docker: docker-test-up ## Run tests with test PostgreSQL container
-	DATABASE_URL="postgres://postgres:postgres@localhost:5433/test_django_rls" poetry run pytest
-	@$(MAKE) docker-test-down
+test-docker: db-setup ## Run tests with docker PostgreSQL
+	DB_NAME=postgres DB_USER=rls_test_user DB_PASSWORD=testpass DB_HOST=localhost DB_PORT=5433 poetry run pytest
 
 .PHONY: test-watch
 test-watch: ## Run tests in watch mode
@@ -145,7 +129,7 @@ clean: ## Clean up generated files
 
 # CI simulation
 .PHONY: ci-local
-ci-local: docker-up clean ## Run CI pipeline locally
+ci-local: db-setup clean ## Run CI pipeline locally
 	@echo "Running CI pipeline locally..."
 	@$(MAKE) lint
 	@$(MAKE) type-check
@@ -155,11 +139,11 @@ ci-local: docker-up clean ## Run CI pipeline locally
 
 # Development workflow
 .PHONY: dev
-dev: docker-up ## Start development environment
+dev: db-setup ## Start development environment
 	@echo "Development environment is ready!"
-	@echo "PostgreSQL is running on localhost:5432"
+	@echo "PostgreSQL is running on localhost:5433"
 	@echo "Run 'make test' to run tests"
 
 .PHONY: dev-reset
-dev-reset: docker-reset clean install ## Reset entire development environment
+dev-reset: docker-reset db-create-user clean install ## Reset entire development environment
 	@echo "Development environment has been reset!"
