@@ -59,6 +59,12 @@ jobs:
         poetry install
         poetry run pip install "django~=${{ matrix.django-version }}"
 
+    - name: Create non-superuser for tests
+      run: |
+        PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE USER rls_test_user WITH PASSWORD 'testpass' CREATEDB;"
+      env:
+        PGPASSWORD: postgres
+
     - name: Run tests with PostgreSQL
       run: |
         # Verify PostgreSQL is accessible
@@ -68,8 +74,8 @@ jobs:
       env:
         USE_POSTGRESQL: "true"
         DB_NAME: test_django_rls
-        DB_USER: postgres
-        DB_PASSWORD: postgres
+        DB_USER: rls_test_user
+        DB_PASSWORD: testpass
         DB_HOST: localhost
         DB_PORT: 5432
 
