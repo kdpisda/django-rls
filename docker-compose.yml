@@ -8,13 +8,11 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: test_django_rls
-      # Additional databases can be created with a script
       POSTGRES_MULTIPLE_DATABASES: test_django_rls,django_rls_dev
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-postgres.sh:/docker-entrypoint-initdb.d/init-postgres.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -22,7 +20,41 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Optional: PgAdmin for database management
+  test-postgres:
+    image: postgres:17-alpine
+    container_name: django_rls_test_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: test_django_rls
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --data-checksums=off"
+      POSTGRES_HOST_AUTH_METHOD: "trust"
+    command: 
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "fsync=off"
+      - "-c"
+      - "synchronous_commit=off"
+      - "-c"
+      - "full_page_writes=off"
+      - "-c"
+      - "wal_buffers=16MB"
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 1s
+      timeout: 3s
+      retries: 10
+    restart: "no"
+
+  # Optional: PgAdmin
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: django_rls_pgadmin
@@ -30,7 +62,6 @@ services:
       PGADMIN_DEFAULT_EMAIL: admin@django-rls.local
       PGADMIN_DEFAULT_PASSWORD: admin
       PGADMIN_CONFIG_SERVER_MODE: 'False'
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
     ports:
       - "5050:80"
     depends_on:

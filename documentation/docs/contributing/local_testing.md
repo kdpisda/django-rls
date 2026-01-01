@@ -61,13 +61,10 @@ make install
 
 ### 3. Run Tests
 ```bash
-# Using Make
+# Using Make (Recommended)
 make test              # Run all tests
 make test-cov         # Run with coverage
 make test-security    # Run security tests only
-
-# Or using the test script
-./run_tests_locally.sh all
 ```
 
 ## Quick Start without Docker
@@ -84,21 +81,6 @@ createdb test_django_rls
 
 ### 3. Run Tests
 
-#### Using the test script (Recommended)
-```bash
-# Run all tests with coverage
-./run_tests_locally.sh all
-
-# Run only security tests
-./run_tests_locally.sh security
-
-# Run tests quickly without coverage
-./run_tests_locally.sh fast
-
-# Run specific tests
-./run_tests_locally.sh specific test_policies
-```
-
 #### Manual Commands
 
 ```bash
@@ -107,31 +89,6 @@ poetry shell
 
 # Run all tests
 pytest
-
-# Run with coverage
-pytest --cov=django_rls --cov-report=term-missing --cov-report=html
-
-# Run specific test file
-pytest tests/test_policies.py -v
-
-# Run specific test class
-pytest tests/test_security.py::TestSQLInjectionPrevention -v
-
-# Run specific test method
-pytest tests/test_security.py::TestSQLInjectionPrevention::test_policy_name_sql_injection -v
-
-# Run tests matching a pattern
-pytest -k "sql_injection" -v
-
-# Run only security tests (using marker)
-pytest -m security -v
-
-# Run tests with short traceback
-pytest --tb=short
-
-# Run tests in parallel (install pytest-xdist first)
-poetry add --dev pytest-xdist
-pytest -n auto
 ```
 
 ## Environment Variables

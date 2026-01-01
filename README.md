@@ -11,6 +11,12 @@
 
 A Django package that provides PostgreSQL Row Level Security (RLS) capabilities at the database level.
 
+See [CONTRIBUTING.md](.github/CONTRIBUTING.md).
+
+## Security
+
+See [SECURITY.md](.github/SECURITY.md).
+
 ## Features
 
 - 🔒 Database-level Row Level Security using PostgreSQL RLS

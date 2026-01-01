@@ -39,15 +39,15 @@ docker-logs: ## Show PostgreSQL logs
 
 .PHONY: docker-test-up
 docker-test-up: ## Start test PostgreSQL (lightweight, port 5433)
-	docker-compose -f docker-compose.test.yml up -d
+	docker-compose up -d test-postgres
 	@echo "Waiting for test PostgreSQL to be ready..."
 	@sleep 2
-	@docker-compose -f docker-compose.test.yml exec -T test-postgres pg_isready -U postgres || (echo "Test PostgreSQL not ready" && exit 1)
+	@docker-compose exec -T test-postgres pg_isready -U postgres || (echo "Test PostgreSQL not ready" && exit 1)
 	@echo "Test PostgreSQL is ready on port 5433!"
 
 .PHONY: docker-test-down
 docker-test-down: ## Stop test PostgreSQL
-	docker-compose -f docker-compose.test.yml down
+	docker-compose stop test-postgres
 
 # Database commands
 .PHONY: db-shell
