@@ -27,6 +27,20 @@ jobs:
       contents: write  # For pushing commits and creating releases
       id-token: write  # REQUIRED for trusted publishing
 
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
     - uses: actions/checkout@v4
       with:
@@ -69,9 +83,22 @@ jobs:
         echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
         echo "New version: $NEW_VERSION"
 
+    - name: Create non-superuser for tests
+      run: |
+        PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE USER rls_test_user WITH PASSWORD 'testpass' CREATEDB;"
+      env:
+        PGPASSWORD: postgres
+
     - name: Run tests
       run: |
         poetry run pytest -xvs
+      env:
+        USE_POSTGRESQL: "true"
+        DB_NAME: postgres
+        DB_USER: rls_test_user
+        DB_PASSWORD: testpass
+        DB_HOST: localhost
+        DB_PORT: 5432
 
     - name: Build package
       run: |
