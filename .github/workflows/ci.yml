@@ -30,6 +30,9 @@ jobs:
       matrix:
         python-version: ['3.11', '3.12']
         django-version: ['5.1', '5.2', '6.0']
+        exclude:
+          - python-version: '3.11'
+            django-version: '6.0'
 
     steps:
     - uses: actions/checkout@v4
@@ -54,7 +57,7 @@ jobs:
     - name: Install dependencies
       run: |
         poetry install
-        poetry add django@~${{ matrix.django-version }}
+        poetry run pip install "django~=${{ matrix.django-version }}"
 
     - name: Run tests with PostgreSQL
       run: |
