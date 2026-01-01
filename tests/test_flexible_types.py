@@ -45,7 +45,7 @@ def test_current_context_generates_uuid_cast():
     # Note: The template is "NULLIF..."
     # The cast is appended in as_postgresql
 
-    assert "::uuid" in sql
+    assert ":: uuid" in sql
     assert "current_setting" in sql
 
 

@@ -162,6 +162,11 @@ class CurrentContext(Func):
         if isinstance(self.output_field, IntegerField):
             return f"({sql}) :: integer", params  # noqa: E231
 
+        from django.db.models import UUIDField
+
+        if isinstance(self.output_field, UUIDField):
+            return f"({sql}) :: uuid", params  # noqa: E231
+
         # Text doesn't need implicit cast usually, but safe to leave as string
         return sql, params
 
