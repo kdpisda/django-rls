@@ -38,7 +38,7 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.10"
 Django = "^5.2.3"
-psycopg2-binary = "^2.9.10"
+
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.4"
@@ -50,7 +50,7 @@ isort = "^6.0.1"
 flake8 = "^7.1.1"
 mypy = "^1.13.0"
 pre-commit = "^4.0.1"
-tox = "^4.23.2"
+psycopg2-binary = "^2.9.10"
 
 [tool.poetry.group.docs.dependencies]
 sphinx = "^8.1.3"
