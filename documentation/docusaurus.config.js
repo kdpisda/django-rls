@@ -77,6 +77,11 @@ const config = {
             label: 'Documentation',
           },
           {
+            href: 'https://forum.django-rls.com',
+            label: 'Forum',
+            position: 'right',
+          },
+          {
             href: 'https://github.com/kdpisda/django-rls',
             label: 'GitHub',
             position: 'right',
@@ -113,6 +118,10 @@ const config = {
               {
                 label: 'GitHub',
                 href: 'https://github.com/kdpisda/django-rls',
+              },
+              {
+                label: 'Forum',
+                href: 'https://forum.django-rls.com',
               },
               {
                 label: 'Issues',
