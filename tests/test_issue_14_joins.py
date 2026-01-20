@@ -55,14 +55,16 @@ def test_joined_field_reference_error():
         # If no policy matches (and RLS on), default is DENY.
         # Our policy is "company__name='Acme'".
 
-        # Insert Data (as Superuser/Bypass)
+        # Insert Data - RLS is now FORCED, so only Acme employees can be created
+        # since the policy is: company__name='Acme'
         Employee.objects.create(name="Alice", company=acme)
-        Employee.objects.create(name="Bob", company=other)
 
-        # For test user (assuming we were switching users, but we are running as
-        # DB Owner/Superuser usually)
-        # To test RLS enforcement we usually need a specialized user.
-        # But here we just want to verify NO SQL ERROR on creation.
+        # Bob at "Other" company would violate RLS policy WITH CHECK clause
+        # This is expected behavior with FORCE ROW LEVEL SECURITY
+        from django.db import ProgrammingError
+
+        with pytest.raises(ProgrammingError):
+            Employee.objects.create(name="Bob", company=other)
 
         # Let's ensure the policy exists in postgres
         with connection.cursor() as cursor:

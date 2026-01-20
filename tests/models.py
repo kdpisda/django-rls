@@ -115,7 +115,8 @@ class HierarchyData(RLSModel):
                 "manager_access",
                 expression=(
                     "owner_id IN (SELECT subordinate_id FROM tests_userhierarchy "
-                    "WHERE manager_id = current_setting('rls.user_id')::int)"
+                    "WHERE manager_id = "
+                    "NULLIF(current_setting('rls.user_id', true), '')::int)"
                 ),
             ),
         ]
@@ -177,16 +178,19 @@ class ERPDocument(RLSModel):
             # )
             CustomPolicy(
                 "hierarchy_policy",
-                expression="department_id IN ("
-                "WITH RECURSIVE dept_tree AS ("
-                "    SELECT id FROM tests_department "
-                "    WHERE id = current_setting('rls.tenant_id')::int "
-                "    UNION "
-                "    SELECT d.id FROM tests_department d "
-                "    INNER JOIN dept_tree dt ON d.parent_id = dt.id "
-                ") "
-                "SELECT id FROM dept_tree"
-                ")",
+                expression=(
+                    "department_id IN ("
+                    "WITH RECURSIVE dept_tree AS ("
+                    "    SELECT id FROM tests_department "
+                    "    WHERE id = "
+                    "NULLIF(current_setting('rls.tenant_id', true), '')::int "
+                    "    UNION "
+                    "    SELECT d.id FROM tests_department d "
+                    "    INNER JOIN dept_tree dt ON d.parent_id = dt.id "
+                    ") "
+                    "SELECT id FROM dept_tree"
+                    ")"
+                ),
             ),
             # 2. ACL Policy:
             # Visible if User has explicit entry in UserPermission for this doc.
@@ -196,10 +200,13 @@ class ERPDocument(RLSModel):
             # )
             CustomPolicy(
                 "acl_policy",
-                expression="id IN ("
-                "    SELECT document_id FROM tests_userpermission "
-                "    WHERE user_id = current_setting('rls.user_id')::int "
-                "    AND can_view = true"
-                ")",
+                expression=(
+                    "id IN ("
+                    "    SELECT document_id FROM tests_userpermission "
+                    "    WHERE user_id = "
+                    "NULLIF(current_setting('rls.user_id', true), '')::int "
+                    "    AND can_view = true"
+                    ")"
+                ),
             ),
         ]

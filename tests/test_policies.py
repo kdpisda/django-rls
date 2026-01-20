@@ -135,7 +135,7 @@ class TestCustomPolicy(TestCase):
     def test_complex_custom_expression(self):
         """Test complex custom expressions."""
         expression = """
-        (user_id = current_setting('rls.user_id')::integer
+        (user_id = NULLIF(current_setting('rls.user_id', true), '')::integer
          OR is_public = true)
         AND NOT is_deleted
         """
