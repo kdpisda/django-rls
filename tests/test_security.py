@@ -246,7 +246,7 @@ class TestAuthenticationBypass(TestCase):
         policy_expression = """
         EXISTS (
             SELECT 1 FROM auth_user u
-            WHERE u.id = current_setting('rls.user_id')::integer
+            WHERE u.id = NULLIF(current_setting('rls.user_id', true), '')::integer
             AND u.is_superuser = false
         )
         """
@@ -379,16 +379,16 @@ class TestPolicyValidation(TestCase):
         """Test handling of complex policy expressions."""
         # Complex nested expression
         complex_expr = """
-        (user_id = current_setting('rls.user_id')::integer
+        (user_id = NULLIF(current_setting('rls.user_id', true), '')::integer
         OR EXISTS (
             SELECT 1 FROM permissions p
-            WHERE p.user_id = current_setting('rls.user_id')::integer
+            WHERE p.user_id = NULLIF(current_setting('rls.user_id', true), '')::integer
             AND p.resource_id = id
         ))
         AND NOT deleted
         AND (
             is_public = true
-            OR owner_id = current_setting('rls.user_id')::integer
+            OR owner_id = NULLIF(current_setting('rls.user_id', true), '')::integer
         )
         """
 
