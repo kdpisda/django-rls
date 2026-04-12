@@ -139,6 +139,11 @@ def enable_rls_on_migrate(sender, **kwargs):
     if sender.name == "django_rls":
         return
 
+    from django_rls.conf import rls_config
+
+    if not rls_config.auto_enable_rls:
+        return
+
     from django.apps import apps
 
     for model in apps.get_models():
