@@ -93,10 +93,15 @@ class TestPythonicPolicies(TransactionTestCase):
                 """
                 )
                 expr = cursor.fetchone()[0]
-                # Expected:
-                # owner_id = NULLIF(current_setting('rls.user_id', true), '')::integer
+                # Expected (context read wrapped in a scalar subquery so the
+                # planner evaluates it once per statement as an InitPlan):
+                #   owner_id = (SELECT NULLIF(current_setting('rls.user_id', true), '')::integer)
                 assert "rls.user_id" in expr
                 assert "current_setting" in expr
+                assert "select" in expr.lower(), (
+                    "context read must be wrapped in a scalar subquery "
+                    "(InitPlan); got: " + expr
+                )
 
         finally:
             with connection.schema_editor() as schema_editor:
