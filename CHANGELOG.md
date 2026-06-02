@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Configurable policy roles**: the `DJANGO_RLS["DEFAULT_ROLES"]` setting is now honored as the default `TO` role for every policy (previously read but ignored). Defaults to `public`, so existing behavior is unchanged; set it to a role such as `authenticated` (which must already exist in the database) to scope all policies to that role. A per-policy `roles=` argument still overrides the project-wide default.
+
 ## [0.2.0] - 2026-01-01
 
 ### Added

@@ -29,12 +29,20 @@ class BasePolicy(ABC):
         name: str,
         operation: str = ALL,
         permissive: bool = True,
-        roles: str = "public",
+        roles: Optional[str] = None,
         **kwargs,
     ):
         self.name = name
         self.operation = operation
         self.permissive = permissive
+        # When ``roles`` is not passed explicitly, fall back to the
+        # project-wide ``DJANGO_RLS["DEFAULT_ROLES"]`` setting (which itself
+        # defaults to ``"public"``). The import is local so that importing
+        # this module never reads Django settings at import time.
+        if roles is None:
+            from .conf import rls_config
+
+            roles = rls_config.default_roles
         self.roles = roles
         self.options = kwargs
         self.validate()
