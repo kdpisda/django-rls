@@ -61,8 +61,9 @@ class TestTenantPolicy(TestCase):
 
         sql = policy.get_sql_expression()
         assert (
-            sql == "company_id = NULLIF(current_setting('rls.tenant_id', true), '') "
-            ":: integer"
+            sql == "company_id = "
+            "(SELECT NULLIF(current_setting('rls.tenant_id', true), '') "
+            ":: integer)"
         )
 
     def test_tenant_policy_requires_field(self):
@@ -98,8 +99,9 @@ class TestUserPolicy(TestCase):
         assert policy.user_field == "owner"
         sql = policy.get_sql_expression()
         assert (
-            sql
-            == "owner_id = NULLIF(current_setting('rls.user_id', true), '') :: integer"
+            sql == "owner_id = "
+            "(SELECT NULLIF(current_setting('rls.user_id', true), '') "
+            ":: integer)"
         )
 
     def test_user_policy_expressions(self):

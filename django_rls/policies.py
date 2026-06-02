@@ -94,11 +94,17 @@ class TenantPolicy(BasePolicy):
         self.validate_field_name(self.tenant_field)
 
     def get_sql_expression(self) -> str:
-        """Generate SQL expression for tenant-based filtering."""
+        """Generate SQL expression for tenant-based filtering.
+
+        The ``current_setting`` read is wrapped in a scalar subquery so the
+        planner evaluates it once per statement (an InitPlan) instead of once
+        per candidate row. This is the documented Postgres RLS performance
+        pattern and is predicate-equivalent to the bare call.
+        """
         return (
             f"{self.tenant_field}_id = "
-            f"NULLIF(current_setting('rls.tenant_id', true), '') "
-            ":: integer"  # noqa: E231
+            f"(SELECT NULLIF(current_setting('rls.tenant_id', true), '') "
+            ":: integer)"  # noqa: E231
         )
 
 
@@ -116,10 +122,17 @@ class UserPolicy(BasePolicy):
         self.validate_field_name(self.user_field)
 
     def get_sql_expression(self) -> str:
-        """Generate SQL expression for user-based filtering."""
+        """Generate SQL expression for user-based filtering.
+
+        The ``current_setting`` read is wrapped in a scalar subquery so the
+        planner evaluates it once per statement (an InitPlan) instead of once
+        per candidate row. This is the documented Postgres RLS performance
+        pattern and is predicate-equivalent to the bare call.
+        """
         return (
             f"{self.user_field}_id = "
-            f"NULLIF(current_setting('rls.user_id', true), '') :: integer"  # noqa: E231
+            f"(SELECT NULLIF(current_setting('rls.user_id', true), '') "
+            ":: integer)"  # noqa: E231
         )
 
 
