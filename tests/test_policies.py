@@ -65,6 +65,30 @@ class TestBasePolicy(TestCase):
         policy = UserPolicy("test", roles="app_user")
         assert policy.roles == "app_user"
 
+    def test_valid_roles_accepted(self):
+        """PUBLIC, a single identifier, and comma-separated lists are valid."""
+        for value in (
+            "public",
+            "PUBLIC",
+            "authenticated",
+            "app_user",
+            "authenticated, app_user",
+        ):
+            assert UserPolicy("test", roles=value).roles == value
+
+    def test_invalid_roles_rejected(self):
+        """A roles value that isn't PUBLIC / a plain identifier list is
+        rejected, so it can never be interpolated into the TO clause."""
+        for bad in (
+            "authenticated; DROP POLICY x",
+            "public) --",
+            "a b",
+            "",
+            "role'name",
+        ):
+            with pytest.raises(PolicyError):
+                UserPolicy("test", roles=bad)
+
 
 class TestTenantPolicy(TestCase):
     """Test tenant-based policies."""

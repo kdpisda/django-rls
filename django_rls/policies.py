@@ -24,6 +24,14 @@ class BasePolicy(ABC):
     # Regex pattern to validate field names (alphanumeric + underscore)
     FIELD_NAME_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
+    # Regex for a single role name. `roles` is interpolated into the
+    # `TO %(roles)s` clause (an identifier position that cannot be
+    # parameterized), so a malformed value — even from trusted config —
+    # must be rejected rather than reach the DDL. Same identifier shape as
+    # field names; PUBLIC and comma-separated lists are handled in
+    # validate_roles().
+    ROLE_NAME_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
     def __init__(
         self,
         name: str,
@@ -61,6 +69,32 @@ class BasePolicy(ABC):
         ]
         if self.operation not in valid_operations:
             raise PolicyError(f"Invalid operation: {self.operation}")
+
+        self.validate_roles(self.roles)
+
+    def validate_roles(self, roles: str) -> None:
+        """Validate the policy's target role(s) for the ``TO`` clause.
+
+        ``roles`` is interpolated into ``TO %(roles)s`` — an identifier
+        position that cannot be parameterized — so although it comes from
+        trusted config (a per-policy ``roles=`` or
+        ``DJANGO_RLS["DEFAULT_ROLES"]``), a malformed value should fail
+        loudly here rather than reach the generated DDL. Accept ``PUBLIC``
+        or a comma-separated list of PostgreSQL identifiers.
+        """
+        if not isinstance(roles, str) or not roles.strip():
+            raise PolicyError("roles must be a non-empty string")
+        for token in roles.split(","):
+            name = token.strip()
+            if name.upper() == "PUBLIC":
+                continue
+            if not self.ROLE_NAME_PATTERN.match(name):
+                raise PolicyError(
+                    f"Invalid role name {name!r} in roles={roles!r}. Roles must "
+                    "be 'PUBLIC' or a comma-separated list of PostgreSQL "
+                    "identifiers (letters, digits, underscores; not starting "
+                    "with a digit)."
+                )
 
     def validate_field_name(self, field_name: str) -> None:
         """Validate that a field name is safe for SQL."""
