@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, Mock, patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from django_rls.backends.postgresql.base import RLSDatabaseSchemaEditor
 from django_rls.policies import CustomPolicy, TenantPolicy, UserPolicy
@@ -73,6 +73,34 @@ class TestRLSDatabaseSchemaEditor(TestCase):
             "USING (owner_id = NULLIF(current_setting('rls.user_id', true), '') "
             ":: integer)" in call_args
         )
+
+    @override_settings(DJANGO_RLS={"DEFAULT_ROLES": "authenticated"})
+    def test_default_roles_setting_applied(self):
+        """A project-wide DEFAULT_ROLES setting becomes the TO clause."""
+        model = Mock()
+        model._meta.db_table = "test_table"
+
+        policy = UserPolicy("test_policy", user_field="owner")
+
+        self.editor.create_policy(model, policy)
+
+        call_args = self.editor.execute.call_args[0][0]
+        assert "TO authenticated" in call_args
+        assert "TO public" not in call_args
+
+    @override_settings(DJANGO_RLS={"DEFAULT_ROLES": "authenticated"})
+    def test_explicit_roles_override_default_setting(self):
+        """An explicit per-policy roles= wins over the DEFAULT_ROLES setting."""
+        model = Mock()
+        model._meta.db_table = "test_table"
+
+        policy = UserPolicy("test_policy", user_field="owner", roles="app_user")
+
+        self.editor.create_policy(model, policy)
+
+        call_args = self.editor.execute.call_args[0][0]
+        assert "TO app_user" in call_args
+        assert "TO authenticated" not in call_args
 
     def test_create_tenant_policy(self):
         """Test creating a tenant-based policy."""

@@ -4,7 +4,7 @@ Tests for RLS policies.
 Following Django REST Framework's testing patterns.
 """
 import pytest
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from django_rls.exceptions import PolicyError
 from django_rls.policies import BasePolicy, CustomPolicy, TenantPolicy, UserPolicy
@@ -42,6 +42,52 @@ class TestBasePolicy(TestCase):
 
         restrictive = UserPolicy("test", permissive=False)
         assert restrictive.permissive is False
+
+    def test_roles_default_is_public(self):
+        """With no roles= and the default setting, roles resolves to 'public'."""
+        policy = UserPolicy("test")
+        assert policy.roles == "public"
+
+    def test_explicit_roles_are_kept(self):
+        """An explicit roles= value is used verbatim."""
+        policy = UserPolicy("test", roles="app_user")
+        assert policy.roles == "app_user"
+
+    @override_settings(DJANGO_RLS={"DEFAULT_ROLES": "authenticated"})
+    def test_roles_fall_back_to_default_setting(self):
+        """When roles= is omitted, DJANGO_RLS['DEFAULT_ROLES'] is used."""
+        policy = UserPolicy("test")
+        assert policy.roles == "authenticated"
+
+    @override_settings(DJANGO_RLS={"DEFAULT_ROLES": "authenticated"})
+    def test_explicit_roles_override_default_setting(self):
+        """An explicit roles= wins over the DEFAULT_ROLES setting."""
+        policy = UserPolicy("test", roles="app_user")
+        assert policy.roles == "app_user"
+
+    def test_valid_roles_accepted(self):
+        """PUBLIC, a single identifier, and comma-separated lists are valid."""
+        for value in (
+            "public",
+            "PUBLIC",
+            "authenticated",
+            "app_user",
+            "authenticated, app_user",
+        ):
+            assert UserPolicy("test", roles=value).roles == value
+
+    def test_invalid_roles_rejected(self):
+        """A roles value that isn't PUBLIC / a plain identifier list is
+        rejected, so it can never be interpolated into the TO clause."""
+        for bad in (
+            "authenticated; DROP POLICY x",
+            "public) --",
+            "a b",
+            "",
+            "role'name",
+        ):
+            with pytest.raises(PolicyError):
+                UserPolicy("test", roles=bad)
 
 
 class TestTenantPolicy(TestCase):

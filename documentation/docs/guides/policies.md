@@ -92,6 +92,49 @@ from django_rls.policies import TenantPolicy
 TenantPolicy('tenant_policy', tenant_field='tenant')
 ```
 
+## Scoping Policies to a Role (`TO`)
+
+Every policy is emitted with a PostgreSQL `TO <role>` clause that controls which database roles the policy applies to. By default this is `public`, meaning the policy applies to **all** roles.
+
+You can scope a policy to a specific role in two ways.
+
+### Per-policy: the `roles` argument
+
+All policy classes accept a `roles` keyword argument:
+
+```python
+from django_rls.policies import TenantPolicy
+
+TenantPolicy('tenant_isolation', tenant_field='tenant', roles='authenticated')
+```
+
+This emits `CREATE POLICY ... TO authenticated ...`.
+
+### Project-wide: the `DEFAULT_ROLES` setting
+
+To apply the same role to every policy without repeating yourself, set `DEFAULT_ROLES` in your `DJANGO_RLS` settings:
+
+```python
+# settings.py
+DJANGO_RLS = {
+    'DEFAULT_ROLES': 'authenticated',
+}
+```
+
+Any policy that does not pass an explicit `roles=` argument then defaults to `TO authenticated`. An explicit per-policy `roles=` always takes precedence over this setting.
+
+:::warning The role must already exist
+PostgreSQL validates the `TO <role>` clause when the policy is created. If you point `DEFAULT_ROLES` (or a per-policy `roles=`) at a role that does not exist in the database, **migrations will fail** with `ERROR: role "<name>" does not exist`.
+
+This is why the default stays `public`: django-rls cannot assume any application-specific role (such as `authenticated`) exists in your database. Only switch to a named role once you have created it, e.g.:
+
+```sql
+CREATE ROLE authenticated;
+```
+:::
+
+Scoping a policy to a non-`public` role is a defense-in-depth (hardening) practice. It does not change the rows a given session can see — the policy predicate still does that — but it narrows the set of roles the policy is evaluated for.
+
 ## Advanced: Custom SQL Policies
 
 For strictly database-specific logic that cannot be expressed in Django ORM, you can use `CustomPolicy` with raw SQL.
