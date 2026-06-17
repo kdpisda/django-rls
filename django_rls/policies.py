@@ -136,11 +136,17 @@ class TenantPolicy(BasePolicy):
         self.validate_field_name(self.tenant_field)
 
     def get_sql_expression(self) -> str:
-        """Generate SQL expression for tenant-based filtering."""
+        """Generate SQL expression for tenant-based filtering.
+
+        The ``current_setting`` read is wrapped in a scalar subquery so the
+        planner evaluates it once per statement (an InitPlan) instead of once
+        per candidate row. This is the documented Postgres RLS performance
+        pattern and is predicate-equivalent to the bare call.
+        """
         return (
             f"{self.tenant_field}_id = "
-            f"NULLIF(current_setting('rls.tenant_id', true), '') "
-            ":: integer"  # noqa: E231
+            f"(SELECT NULLIF(current_setting('rls.tenant_id', true), '') "
+            ":: integer)"  # noqa: E231
         )
 
 
@@ -158,10 +164,17 @@ class UserPolicy(BasePolicy):
         self.validate_field_name(self.user_field)
 
     def get_sql_expression(self) -> str:
-        """Generate SQL expression for user-based filtering."""
+        """Generate SQL expression for user-based filtering.
+
+        The ``current_setting`` read is wrapped in a scalar subquery so the
+        planner evaluates it once per statement (an InitPlan) instead of once
+        per candidate row. This is the documented Postgres RLS performance
+        pattern and is predicate-equivalent to the bare call.
+        """
         return (
             f"{self.user_field}_id = "
-            f"NULLIF(current_setting('rls.user_id', true), '') :: integer"  # noqa: E231
+            f"(SELECT NULLIF(current_setting('rls.user_id', true), '') "
+            ":: integer)"  # noqa: E231
         )
 
 
@@ -201,16 +214,23 @@ class CurrentContext(Func):
     def as_postgresql(self, compiler, connection, **extra_context):
         # We handle casting explicitly in SQL for clarity
         sql, params = super().as_sql(compiler, connection, **extra_context)
+        # Wrap the context read in a scalar subquery so Postgres evaluates
+        # it once per statement (an InitPlan) instead of once per candidate
+        # row — the same per-statement caching the raw-string TenantPolicy/
+        # UserPolicy predicates use. This keeps ModelPolicy (which compiles
+        # Q objects through this expression) consistent with the other
+        # policy types. Predicate-equivalent: a scalar subquery returns the
+        # same single value.
         if isinstance(self.output_field, IntegerField):
-            return f"({sql}) :: integer", params  # noqa: E231
+            return f"(SELECT ({sql}) :: integer)", params  # noqa: E231
 
         from django.db.models import UUIDField
 
         if isinstance(self.output_field, UUIDField):
-            return f"({sql}) :: uuid", params  # noqa: E231
+            return f"(SELECT ({sql}) :: uuid)", params  # noqa: E231
 
         # Text doesn't need implicit cast usually, but safe to leave as string
-        return sql, params
+        return f"(SELECT {sql})", params
 
 
 class UserContext(CurrentContext):
