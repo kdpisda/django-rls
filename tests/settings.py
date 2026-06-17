@@ -106,7 +106,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Django RLS Settings
 DJANGO_RLS = {
-    'AUTO_ENABLE_RLS': False,  # Don't auto-enable in tests
+    'AUTO_ENABLE_RLS': True,  # Tests rely on post_migrate to enable RLS on test tables
     'DEFAULT_ROLES': 'public',
     'DEFAULT_PERMISSIVE': True,
     'DEBUG': True,
