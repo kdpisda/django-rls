@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Configurable policy roles**: the `DJANGO_RLS["DEFAULT_ROLES"]` setting is now honored as the default `TO` role for every policy (previously read but ignored). Defaults to `public`, so existing behavior is unchanged; set it to a role such as `authenticated` (which must already exist in the database) to scope all policies to that role. A per-policy `roles=` argument still overrides the project-wide default.
 
+### Changed
+- **Policy context reads cached per-statement**: `TenantPolicy`, `UserPolicy`, and `ModelPolicy` (via `CurrentContext`/`UserContext`) now wrap `current_setting()` in a scalar subquery in the `USING`/`WITH CHECK` predicate, so Postgres evaluates the RLS context once per statement (as an `InitPlan`) instead of once per row. Predicate-equivalent and fail-closed; the documented Postgres RLS performance pattern.
+
+### Fixed
+- **`AUTO_ENABLE_RLS=False` is now respected**: the `post_migrate` signal previously ignored the `DJANGO_RLS["AUTO_ENABLE_RLS"]` setting and always enabled RLS on every migration. The signal now early-returns when the setting is `False`.
+
 ## [0.2.0] - 2026-01-01
 
 ### Added
