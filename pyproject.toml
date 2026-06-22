@@ -49,7 +49,7 @@ coverage = {extras = ["toml"], version = "^7.6.0"}
 black = "^25.1.0"
 isort = "^6.0.1"
 flake8 = "^7.1.1"
-mypy = "^1.13.0"
+mypy = ">=1.13,<3.0"
 pre-commit = "^4.0.1"
 psycopg2-binary = "^2.9.10"
 hypothesis = "^6.148.9"
