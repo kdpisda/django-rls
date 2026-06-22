@@ -7,7 +7,12 @@ updates:
       interval: "weekly"
     reviewers:
       - "kdpisda"
-  
+    # Collapse action bumps into a single PR instead of one per action
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
   # Maintain dependencies for Python
   - package-ecosystem: "pip"
     directory: "/"
@@ -15,7 +20,16 @@ updates:
       interval: "weekly"
     reviewers:
       - "kdpisda"
-  
+    # Bump the pin only when a release falls outside the existing constraint,
+    # rather than widening caret ranges to allow future majors in unreviewed.
+    versioning-strategy: "increase-if-necessary"
+    # One grouped PR for runtime deps, one for dev tooling
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+      development-dependencies:
+        dependency-type: "development"
+
   # Maintain dependencies for npm (documentation)
   - package-ecosystem: "npm"
     directory: "/documentations"
@@ -26,3 +40,8 @@ updates:
     # Limit to documentation-related updates
     allow:
       - dependency-type: "all"
+    # Collapse doc dependency bumps into a single PR
+    groups:
+      documentation-dependencies:
+        patterns:
+          - "*"
