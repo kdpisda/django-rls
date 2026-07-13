@@ -31,6 +31,7 @@ class TestRLSContextMiddleware(TestCase):
         request = Mock()
         request.user = Mock(id=123)
         request.session = {}
+        del request.tenant
 
         middleware(request)
 
