@@ -18,8 +18,8 @@ class TestConcurrency(SimpleTestCase):
     def setUp(self):
         self.factory = RequestFactory()
 
-    @patch("django_rls.middleware.set_rls_context")
-    def test_concurrent_requests_isolation(self, mock_set_context):
+    @patch("django_rls.middleware.apply_rls_context")
+    def test_concurrent_requests_isolation(self, mock_apply):
         """
         Simulate multiple threads processing requests for different tenants
         simultaneously to ensure no variable leakage (thread-safety).
@@ -67,8 +67,8 @@ class TestConcurrency(SimpleTestCase):
         # This test primarily verifies no race conditions in the pure python logic crash it.
         pass
 
-    @patch("django_rls.middleware.set_rls_context")
-    def test_middleware_is_stateless(self, mock_set_context):
+    @patch("django_rls.middleware.apply_rls_context")
+    def test_middleware_is_stateless(self, mock_apply):
         """Verify middleware does not store request-specific state on self."""
         middleware = RLSContextMiddleware(lambda r: "OK")
         request = self.factory.get("/")

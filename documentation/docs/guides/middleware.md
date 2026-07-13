@@ -8,10 +8,12 @@ The RLSContextMiddleware is responsible for setting PostgreSQL session variables
 
 ## How It Works
 
-1. Extracts user and tenant information from the request
-2. Sets PostgreSQL session variables using `SET LOCAL`
-3. These variables are available to RLS policies during the request
-4. Clears the context after the request completes
+1. Clears any stale RLS variables from pooled database connections
+2. Extracts user and tenant information from the authenticated request
+3. Sets PostgreSQL session variables using `set_config(..., is_local=false)` (session scope)
+4. Clears all set variables after the request completes (even on exceptions)
+
+**Security note:** `tenant_id` from `request.session` is **disabled by default**. Enable only with `DJANGO_RLS['ALLOW_SESSION_TENANT'] = True` and a `TENANT_MEMBERSHIP_VALIDATOR`.
 
 ## Basic Setup
 

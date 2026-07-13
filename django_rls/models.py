@@ -7,10 +7,10 @@ from django.db import models
 from django.db.models.signals import post_migrate
 from django.dispatch import receiver
 
-from .exceptions import ConfigurationError, PolicyError
+from django_rls.exceptions import ConfigurationError, PolicyError
 
 if TYPE_CHECKING:
-    from .policies import BasePolicy
+    from django_rls.policies import BasePolicy
 
 logger = logging.getLogger(__name__)
 
@@ -52,15 +52,68 @@ class RLSModelMeta(models.base.ModelBase):
             raise ConfigurationError("rls_policies must be a list")
 
         # Import here to avoid circular dependency
-        from .policies import BasePolicy
+        from django_rls.policies import BasePolicy
 
         for policy in policies:
             if not isinstance(policy, BasePolicy):
                 raise PolicyError(f"Policy {policy} must inherit from BasePolicy")
 
 
+class RLSQuerySet(models.QuerySet):
+    """QuerySet that optionally enforces identity context before database access."""
+
+    def _enforce_context(self) -> None:
+        if not getattr(self.model, "_rls_policies", None):
+            return
+        from django_rls.context import require_rls_context
+
+        require_rls_context()
+
+    def iterator(self, *args, **kwargs):
+        self._enforce_context()
+        return super().iterator(*args, **kwargs)
+
+    def get(self, *args, **kwargs):
+        self._enforce_context()
+        return super().get(*args, **kwargs)
+
+    def create(self, **kwargs):
+        self._enforce_context()
+        return super().create(**kwargs)
+
+    def bulk_create(self, *args, **kwargs):
+        self._enforce_context()
+        return super().bulk_create(*args, **kwargs)
+
+    def update(self, **kwargs):
+        self._enforce_context()
+        return super().update(**kwargs)
+
+    def delete(self):
+        self._enforce_context()
+        return super().delete()
+
+    def exists(self):
+        self._enforce_context()
+        return super().exists()
+
+    def count(self):
+        self._enforce_context()
+        return super().count()
+
+    def aggregate(self, *args, **kwargs):
+        self._enforce_context()
+        return super().aggregate(*args, **kwargs)
+
+
+class RLSManager(models.Manager.from_queryset(RLSQuerySet)):
+    """Manager for RLS-protected models."""
+
+
 class RLSModel(models.Model, metaclass=RLSModelMeta):
     """Base model class that provides RLS functionality."""
+
+    objects = RLSManager()
 
     class Meta:
         abstract = True
@@ -156,4 +209,8 @@ def enable_rls_on_migrate(sender, **kwargs):
                 try:
                     model.enable_rls()
                 except Exception as e:
-                    logger.error(f"Failed to enable RLS for {model._meta.label}: {e}")
+                    logger.error(
+                        "Failed to enable RLS for %s: %s", model._meta.label, e
+                    )
+                    if rls_config.strict_migrate_rls:
+                        raise

@@ -1,5 +1,5 @@
 """Database backends for Django RLS."""
 
-from .postgresql.base import DatabaseWrapper
+from django_rls.backends.postgresql.base import DatabaseWrapper
 
-__all__ = ['DatabaseWrapper']
+__all__ = ["DatabaseWrapper"]

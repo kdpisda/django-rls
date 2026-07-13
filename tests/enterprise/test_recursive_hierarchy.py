@@ -68,9 +68,9 @@ class TestRecursiveHierarchy(TransactionTestCase):
         # To insert into Backend (Dept 3), if I set tenant=Backend,
         # Tree = {Backend}. doc.dept=Backend. Match.
 
-        set_rls_context("tenant_id", self.d_backend.id, is_local=False)
+        set_rls_context("tenant_id", self.d_backend.id, is_local=False, system=True)
         set_rls_context(
-            "user_id", self.u_backend.id, is_local=False
+            "user_id", self.u_backend.id, is_local=False, system=True
         )  # For ACL policy check? No, policies are OR.
 
         ERPDocument.objects.create(
@@ -80,17 +80,17 @@ class TestRecursiveHierarchy(TransactionTestCase):
         )
 
         # Insert Docs for Frontend
-        set_rls_context("tenant_id", self.d_frontend.id, is_local=False)
+        set_rls_context("tenant_id", self.d_frontend.id, is_local=False, system=True)
         ERPDocument.objects.create(title="Frontend UI Kit", department=self.d_frontend)
 
         # Insert Docs for Sales
-        set_rls_context("tenant_id", self.d_sales.id, is_local=False)
+        set_rls_context("tenant_id", self.d_sales.id, is_local=False, system=True)
         ERPDocument.objects.create(title="Q4 Targets", department=self.d_sales)
 
         # 1. Verify VP Eng Visibility (Dept 2)
         # Should see: Backend, Frontend.
         # Should NOT see: Sales, CEO.
-        set_rls_context("tenant_id", self.d_eng.id, is_local=False)
+        set_rls_context("tenant_id", self.d_eng.id, is_local=False, system=True)
 
         qs = ERPDocument.objects.all()
         titles = set(qs.values_list("title", flat=True))
@@ -101,7 +101,7 @@ class TestRecursiveHierarchy(TransactionTestCase):
 
         # 2. Verify CEO Visibility (Dept 1)
         # Should see ALL.
-        set_rls_context("tenant_id", self.d_root.id, is_local=False)
+        set_rls_context("tenant_id", self.d_root.id, is_local=False, system=True)
 
         qs = ERPDocument.objects.all()
         titles = set(qs.values_list("title", flat=True))
@@ -113,7 +113,7 @@ class TestRecursiveHierarchy(TransactionTestCase):
         # 3. Verify Backend Lead Visibility (Dept 3)
         # Should see Self (Backend).
         # Should NOT see Frontend (Sibling) or Eng (Parent).
-        set_rls_context("tenant_id", self.d_backend.id, is_local=False)
+        set_rls_context("tenant_id", self.d_backend.id, is_local=False, system=True)
 
         qs = ERPDocument.objects.all()
         titles = set(qs.values_list("title", flat=True))

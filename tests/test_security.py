@@ -80,16 +80,12 @@ class TestSQLInjectionPrevention(TestCase):
         assert "letters, numbers, and underscores" in str(exc_info.value)
 
     def test_custom_expression_validation(self):
-        """Test that custom expressions don't allow arbitrary SQL."""
-        # This should be validated/sanitized in production
-        policy = CustomPolicy(
-            "test_policy", expression="is_public = true; DROP TABLE users; --"
-        )
-
-        # The expression is used as-is, but should be validated
-        expr = policy.get_sql_expression()
-        assert expr == "is_public = true; DROP TABLE users; --"
-        # In production, this should be validated or use parameterized queries
+        """Test that dangerous CustomPolicy SQL is rejected."""
+        with pytest.raises(PolicyError) as exc_info:
+            CustomPolicy(
+                "test_policy", expression="is_public = true; DROP TABLE users; --"
+            )
+        assert "forbidden SQL tokens" in str(exc_info.value)
 
     @patch("django_rls.db.functions.connection")
     def test_context_value_sql_injection(self, mock_conn):
@@ -99,7 +95,7 @@ class TestSQLInjectionPrevention(TestCase):
 
         # Attempt SQL injection via user ID
         malicious_user_id = "1'; DROP TABLE users; --"
-        set_rls_context("user_id", malicious_user_id)
+        set_rls_context("user_id", malicious_user_id, system=True)
 
         # Check that parameterized query was used
         mock_cursor.execute.assert_called_with(
@@ -114,33 +110,20 @@ class TestBrokenAccessControl(TestCase):
         self.factory = RequestFactory()
         self.middleware = RLSContextMiddleware(lambda r: Mock())
 
-    @patch("django_rls.db.functions.connection")
-    def test_user_cannot_set_arbitrary_context(self, mock_conn):
-        """Test that users cannot manipulate RLS context directly."""
-        mock_cursor = Mock()
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-
-        # Create request with authenticated user
+    @patch("django_rls.middleware.apply_rls_context")
+    def test_user_cannot_set_arbitrary_context(self, mock_apply):
+        """Test that users cannot manipulate RLS context via headers/params."""
         request = self.factory.get("/")
         request.user = Mock(id=123)
         request.session = {}
-
-        # User tries to set context to different user ID via headers/params
         request.META["HTTP_X_RLS_USER_ID"] = "456"
         request.GET = {"rls_user_id": "789"}
 
-        # Middleware should only use authenticated user ID
         self.middleware._set_rls_context(request)
 
-        # Verify only the authenticated user's ID was set
-        calls = mock_cursor.execute.call_args_list
-        set_user_id_calls = [
-            c for c in calls if "user_id" in str(c) and "set_config" in str(c)
-        ]
-        assert len(set_user_id_calls) == 1
-        assert "123" in str(set_user_id_calls[0])
-        assert "456" not in str(set_user_id_calls[0])
-        assert "789" not in str(set_user_id_calls[0])
+        mock_apply.assert_called_once_with(
+            {"user_id": 123}, system=True, source="middleware"
+        )
 
     def test_anonymous_user_cannot_access_protected_data(self):
         """Test that anonymous users don't get access to protected data."""
@@ -149,12 +132,9 @@ class TestBrokenAccessControl(TestCase):
         request.session = {}
 
         # Middleware should not set user context for anonymous users
-        with patch("django_rls.middleware.set_rls_context") as mock_set:
+        with patch("django_rls.middleware.apply_rls_context") as mock_apply:
             self.middleware._set_rls_context(request)
-
-            # Should not set user_id for anonymous users
-            user_id_calls = [c for c in mock_set.call_args_list if c[0][0] == "user_id"]
-            assert len(user_id_calls) == 0
+            mock_apply.assert_called_once_with({}, system=True, source="middleware")
 
     def test_tenant_isolation(self):
         """Test that tenant isolation cannot be bypassed."""
@@ -164,15 +144,13 @@ class TestBrokenAccessControl(TestCase):
         request.tenant = Mock(id=1)
         request.session = {"tenant_id": 1}
 
-        with patch("django_rls.middleware.set_rls_context") as mock_set:
+        with patch("django_rls.middleware.apply_rls_context") as mock_apply:
             self.middleware._set_rls_context(request)
-
-            # Verify tenant context is set correctly
-            tenant_calls = [
-                c for c in mock_set.call_args_list if c[0][0] == "tenant_id"
-            ]
-            assert len(tenant_calls) == 1
-            assert tenant_calls[0][0][1] == 1
+            mock_apply.assert_called_once_with(
+                {"user_id": 123, "tenant_id": 1},
+                system=True,
+                source="middleware",
+            )
 
 
 class TestSecurityMisconfiguration(TestCase):
@@ -225,20 +203,12 @@ class TestAuthenticationBypass(TestCase):
         """Test that RLS context is properly cleared between requests."""
         middleware = RLSContextMiddleware(lambda r: Mock())
 
-        with patch("django_rls.middleware.set_rls_context") as mock_set:
-            # First request with user 1
+        with patch("django_rls.middleware.clear_rls_context") as mock_clear:
             request1 = self.factory.get("/")
             request1.user = Mock(id=1)
-            middleware._set_rls_context(request1)
-            middleware._clear_rls_context()
-
-            # Verify context was cleared
-            clear_calls = [
-                c
-                for c in mock_set.call_args_list
-                if c[0][1] == ""  # Empty string means clearing
-            ]
-            assert len(clear_calls) >= 2  # user_id and tenant_id cleared
+            request1.rls_set_keys = ["user_id"]
+            middleware._clear_rls_context(request1)
+            mock_clear.assert_called_once_with({"user_id"})
 
     def test_privilege_escalation_prevention(self):
         """Test that users cannot escalate privileges through RLS manipulation."""
@@ -275,13 +245,11 @@ class TestInjectionVulnerabilities(TestCase):
         request.META["HTTP_X_TENANT_ID"] = "999"
         request.META["HTTP_AUTHORIZATION"] = "Bearer malicious"
 
-        with patch("django_rls.middleware.set_rls_context") as mock_set:
+        with patch("django_rls.middleware.apply_rls_context") as mock_apply:
             middleware._set_rls_context(request)
-
-            # Verify only legitimate user ID was set
-            user_calls = [c for c in mock_set.call_args_list if c[0][0] == "user_id"]
-            assert all("123" in str(c) for c in user_calls)
-            assert not any("456" in str(c) for c in user_calls)
+            mock_apply.assert_called_once_with(
+                {"user_id": 123}, system=True, source="middleware"
+            )
 
     def test_json_injection_prevention(self):
         """Test that JSON payloads cannot inject RLS context."""
@@ -294,12 +262,11 @@ class TestInjectionVulnerabilities(TestCase):
 
         middleware = RLSContextMiddleware(lambda r: Mock())
 
-        with patch("django_rls.middleware.set_rls_context") as mock_set:
+        with patch("django_rls.middleware.apply_rls_context") as mock_apply:
             middleware._set_rls_context(request)
-
-            # Verify request body didn't affect context
-            user_calls = [c for c in mock_set.call_args_list if c[0][0] == "user_id"]
-            assert not any("999" in str(c) for c in user_calls)
+            mock_apply.assert_called_once_with(
+                {"user_id": 123}, system=True, source="middleware"
+            )
 
 
 class TestRLSBypassPrevention(TestCase):
@@ -339,19 +306,17 @@ class TestCrossTenantVulnerabilities(TestCase):
     """Test cross-tenant access vulnerabilities."""
 
     def test_tenant_context_isolation(self):
-        """Test that tenant contexts are properly isolated."""
-        # Skip if not using PostgreSQL (current_setting is PostgreSQL-specific)
+        """Test that identity context cannot be overridden without system mode."""
         if connection.vendor != "postgresql":
             self.skipTest("PostgreSQL-specific test")
 
-        with RLSContext(tenant_id=1, user_id=100):
+        from django_rls.exceptions import RLSContextImmutableError
+
+        with RLSContext(system=True, tenant_id=1, user_id=100):
             assert get_rls_context("tenant_id") == "1"
-
-            # Nested context shouldn't affect outer context
-            with RLSContext(tenant_id=2):
-                assert get_rls_context("tenant_id") == "2"
-
-            # Original context restored
+            with pytest.raises(RLSContextImmutableError):
+                with RLSContext(tenant_id=2):
+                    pass
             assert get_rls_context("tenant_id") == "1"
 
     def test_concurrent_request_isolation(self):
@@ -413,8 +378,8 @@ class TestSecurityHeaders(TestCase):
         """Set up test fixtures."""
         self.factory = RequestFactory()
 
-    @patch("django_rls.middleware.set_rls_context")
-    def test_no_sensitive_data_in_responses(self, mock_set_context):
+    @patch("django_rls.middleware.apply_rls_context")
+    def test_no_sensitive_data_in_responses(self, mock_apply):
         """Test that RLS context is not leaked in responses."""
         middleware = RLSContextMiddleware(lambda r: HttpResponse())
         request = self.factory.get("/")
@@ -428,5 +393,4 @@ class TestSecurityHeaders(TestCase):
             assert "rls.user_id" not in str(response.headers)
             assert "rls.tenant_id" not in str(response.headers)
 
-        # Verify context was set but not leaked
-        mock_set_context.assert_called()
+        mock_apply.assert_called_once()

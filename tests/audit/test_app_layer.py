@@ -20,65 +20,43 @@ class TestAppLayer(TransactionTestCase):
         self.factory = RequestFactory()
         self.u1 = User.objects.create_user("u1")
 
-    def test_transaction_abort_clears_context(self):
-        """
-        Verify that `_clear_rls_context` is called even if app crashes.
-        """
+    @patch("django_rls.middleware.clear_rls_context")
+    @patch("django_rls.middleware.apply_rls_context")
+    def test_transaction_abort_clears_context(self, mock_apply, mock_clear):
+        """Verify that `_clear_rls_context` is called even if app crashes."""
         middleware = RLSContextMiddleware(lambda r: "OK")
         request = self.factory.get("/")
         request.user = self.u1
         request.session = {}
 
-        with patch("django_rls.middleware.set_rls_context") as mock_set:
-            try:
-                # Simulate middleware entry (manually calling set)
-                middleware._set_rls_context(request)
+        try:
+            middleware._set_rls_context(request)
+            raise ValueError("Crash")
+        except ValueError:
+            pass
+        finally:
+            middleware._clear_rls_context(request)
 
-                # Simulate app logic crash
-                raise ValueError("Crash")
-            except ValueError:
-                pass
-            finally:
-                # Middleware exit
-                middleware._clear_rls_context()
+        mock_apply.assert_called_once()
+        mock_clear.assert_called_once()
 
-            # Verification:
-            # 1. set_rls_context called for setup (user, tenant if any)
-            # 2. set_rls_context called for cleanup (user='', tenant='')
-
-            # Filter calls to clear
-            clear_calls = [
-                c
-                for c in mock_set.call_args_list
-                if c[0][0] == "user_id" and c[0][1] == ""
-            ]
-            assert len(clear_calls) > 0, "Context was not cleared!"
-
-    def test_superuser_bypass_application_check(self):
-        """
-        Scenario: App connects as Superuser (Django superuser).
-        Check: RLS is still set.
-        """
+    @patch("django_rls.middleware.clear_rls_context")
+    @patch("django_rls.middleware.apply_rls_context")
+    def test_superuser_bypass_application_check(self, mock_apply, mock_clear):
+        """Django superusers still receive RLS identity context from middleware."""
         su = User.objects.create_superuser("admin", "admin@e.com", "pass")
         request = self.factory.get("/")
         request.user = su
         request.session = {}
 
         middleware = RLSContextMiddleware(lambda r: "OK")
+        middleware(request)
 
-        # Patching the database function globally to handle both set (start) and clear (finish)
-        with patch("django_rls.middleware.set_rls_context") as mock_set:
-            middleware(request)
-            # Verify we called it at least once (to set it)
-            # calls: set(user), clear()
-            assert mock_set.call_count >= 1
-            # Check setup call
-            setup_call = mock_set.call_args_list[0]
-            assert setup_call[0][0] == "user_id"
-            assert str(setup_call[0][1]) == str(su.id)
+        mock_apply.assert_called_once_with(
+            {"user_id": su.id}, system=True, source="middleware"
+        )
+        mock_clear.assert_called_once()
 
     def test_connection_pooling_safety(self):
-        """
-        Already covered extensively in tests/security/test_context_leak.py
-        """
+        """Covered in tests/security/test_context_leak.py and context hygiene."""
         pass

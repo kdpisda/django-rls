@@ -1,54 +1,45 @@
 """
-Security Test: SQL Injection in Expressions
+Legacy SQL injection tests — kept for backward compatibility.
 
-This test verifies that the library prevents SQL injection
-when generating RLS policies.
+See also:
+- test_policy_sql_injection.py
+- test_context_sql_injection.py
 """
+
 import pytest
-from django.test import SimpleTestCase
 
+from django_rls.exceptions import PolicyError
 from django_rls.expressions import RLSExpression
+from django_rls.policies import CustomPolicy, TenantPolicy
 
 
-class TestSQLInjection(SimpleTestCase):
-    def test_unsafe_string_interpolation(self):
-        """
-        Critical Vulnerability Test:
-        Verify that string values are NOT safely parameterized or escaped.
-        """
-        malicious_value = "1'; DROP TABLE users; --"
+@pytest.mark.security
+def test_rls_expression_escapes_drop_table_payload():
+    malicious_value = "1'; DROP TABLE users; --"
+    result = RLSExpression("dummy")._format_value(malicious_value)
 
-        # Currently expressions.py does: f"'{value}'"
-        # We expect this to produce: '1'; DROP TABLE users; --'
-        # Which is a valid SQL injection payload.
+    assert result != f"'{malicious_value}'"
+    assert result == f"'{malicious_value.replace(chr(39), chr(39) * 2)}'"
 
-        # If the code was safe, it should produce something like:
-        # '1''; DROP TABLE users; --'
-        # or use placeholders like %s
 
-        builder = RLSExpression("dummy")
-        result = builder._format_value(malicious_value)
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "field_name",
+    [
+        "owner'; DROP TABLE users; --",
+        "tenant_id; DELETE FROM secrets",
+        "bad-field",
+    ],
+)
+def test_policy_field_injection_rejected(field_name):
+    with pytest.raises(PolicyError, match="Invalid field name"):
+        TenantPolicy("field_policy", tenant_field=field_name)
 
-        print(f"\nFormatted Value: {result}")
 
-        # Check for successful injection (un-escaped quote)
-        if result == f"'{malicious_value}'":
-            pytest.fail(
-                "Security Failure: Value was NOT escaped and allows SQL injection!"
-            )
-
-        # We expect simple escaping for now, e.g. single quotes doubled
-        safe_val = malicious_value.replace("'", "''")
-        expected_safe = f"'{safe_val}'"
-
-        escaped_val = malicious_value.replace("'", "\\'")
-        assert (
-            result == expected_safe or result == f"'{escaped_val}'"
-        ), f"Value not properly escaped. Got: {result}"
-
-    def test_policy_field_injection(self):
-        """Test injection via policy field names."""
-        # The library does simplistic regex validation, so this might actually
-        # pass (be safe)
-        # But we double check.
-        pass
+@pytest.mark.security
+def test_custom_policy_drop_table_blocked():
+    with pytest.raises(PolicyError, match="forbidden SQL tokens"):
+        CustomPolicy(
+            "evil",
+            expression="is_public = true; DROP TABLE users; --",
+        )

@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 import pytest
 from django.contrib.auth.models import AnonymousUser
 from django.http import HttpResponse
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from django_rls.middleware import RLSContextMiddleware
 
@@ -20,80 +20,98 @@ class TestRLSContextMiddleware(TestCase):
         middleware = RLSContextMiddleware(get_response)
         assert middleware.get_response == get_response
 
-    @patch("django_rls.middleware.set_rls_context")
-    def test_set_user_context(self, mock_set_rls_context):
+    @patch("django_rls.middleware.reset_connection_rls_context")
+    @patch("django_rls.middleware.apply_rls_context")
+    @patch("django_rls.middleware.clear_rls_context")
+    def test_set_user_context(self, mock_clear, mock_apply, mock_reset):
         """Test setting user context."""
-        # Setup
         get_response = Mock(return_value=HttpResponse())
         middleware = RLSContextMiddleware(get_response)
 
-        # Create mock request with user
         request = Mock()
         request.user = Mock(id=123)
         request.session = {}
 
-        # Call middleware
         middleware(request)
 
-        # Verify set_rls_context was called for user
-        mock_set_rls_context.assert_any_call("user_id", 123, is_local=False)
+        mock_apply.assert_called_once_with(
+            {"user_id": 123}, system=True, source="middleware"
+        )
+        mock_clear.assert_called_once()
 
-    @patch("django_rls.middleware.set_rls_context")
-    def test_anonymous_user_context(self, mock_set_rls_context):
+    @patch("django_rls.middleware.reset_connection_rls_context")
+    @patch("django_rls.middleware.apply_rls_context")
+    @patch("django_rls.middleware.clear_rls_context")
+    def test_anonymous_user_context(self, mock_clear, mock_apply, mock_reset):
         """Test handling anonymous user."""
-        # Setup
         get_response = Mock(return_value=HttpResponse())
         middleware = RLSContextMiddleware(get_response)
 
-        # Create mock request with anonymous user
         request = Mock()
         del request.tenant
         request.user = AnonymousUser()
         request.session = {}
 
-        # Call middleware
         middleware(request)
 
-        # Verify set_rls_context was NOT called for user_id (optimization)
-        calls = [c for c in mock_set_rls_context.mock_calls if "user_id" in str(c)]
-        assert len(calls) == 0, "Should not set/clear user_id for AnonymousUser"
+        mock_apply.assert_called_once_with({}, system=True, source="middleware")
 
-    @patch("django_rls.middleware.set_rls_context")
-    def test_tenant_context_from_request(self, mock_set_rls_context):
+    @patch("django_rls.middleware.reset_connection_rls_context")
+    @patch("django_rls.middleware.apply_rls_context")
+    @patch("django_rls.middleware.clear_rls_context")
+    def test_tenant_context_from_request(self, mock_clear, mock_apply, mock_reset):
         """Test setting tenant context from request.tenant."""
-        # Setup
         get_response = Mock(return_value=HttpResponse())
         middleware = RLSContextMiddleware(get_response)
 
-        # Create mock request with tenant
         request = Mock()
         request.user = AnonymousUser()
         request.tenant = Mock(id=456)
         request.session = {}
 
-        # Call middleware
         middleware(request)
 
-        # Verify set_rls_context was called for tenant
-        mock_set_rls_context.assert_any_call("tenant_id", 456, is_local=False)
+        mock_apply.assert_called_once_with(
+            {"tenant_id": 456}, system=True, source="middleware"
+        )
 
-    @patch("django_rls.middleware.set_rls_context")
-    def test_tenant_context_from_session(self, mock_set_rls_context):
-        """Test setting tenant context from session."""
-        # Setup
+    @patch("django_rls.middleware.reset_connection_rls_context")
+    @patch("django_rls.middleware.apply_rls_context")
+    @patch("django_rls.middleware.clear_rls_context")
+    def test_tenant_context_from_session_blocked_by_default(
+        self, mock_clear, mock_apply, mock_reset
+    ):
+        """Session tenant_id is ignored unless ALLOW_SESSION_TENANT is enabled."""
         get_response = Mock(return_value=HttpResponse())
         middleware = RLSContextMiddleware(get_response)
 
-        # Create mock request with tenant in session
         request = Mock()
         request.user = AnonymousUser()
         request.session = {"tenant_id": 789}
-
-        # Mock that request doesn't have tenant attribute
         del request.tenant
 
-        # Call middleware
         middleware(request)
 
-        # Verify set_rls_context was called for tenant
-        mock_set_rls_context.assert_any_call("tenant_id", 789, is_local=False)
+        mock_apply.assert_called_once_with({}, system=True, source="middleware")
+
+    @override_settings(DJANGO_RLS={"ALLOW_SESSION_TENANT": True})
+    @patch("django_rls.middleware.reset_connection_rls_context")
+    @patch("django_rls.middleware.apply_rls_context")
+    @patch("django_rls.middleware.clear_rls_context")
+    def test_tenant_context_from_session_when_enabled(
+        self, mock_clear, mock_apply, mock_reset
+    ):
+        """Session tenant_id is used only when explicitly opted in."""
+        get_response = Mock(return_value=HttpResponse())
+        middleware = RLSContextMiddleware(get_response)
+
+        request = Mock()
+        request.user = AnonymousUser()
+        request.session = {"tenant_id": 789}
+        del request.tenant
+
+        middleware(request)
+
+        mock_apply.assert_called_once_with(
+            {"tenant_id": 789}, system=True, source="middleware"
+        )
