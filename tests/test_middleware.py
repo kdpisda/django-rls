@@ -29,7 +29,7 @@ class TestRLSContextMiddleware(TestCase):
         middleware = RLSContextMiddleware(get_response)
 
         request = Mock()
-        request.user = Mock(id=123)
+        request.user = Mock(id=123, spec=[])
         request.session = {}
         del request.tenant
 
