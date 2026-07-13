@@ -114,7 +114,7 @@ class TestBrokenAccessControl(TestCase):
     def test_user_cannot_set_arbitrary_context(self, mock_apply):
         """Test that users cannot manipulate RLS context via headers/params."""
         request = self.factory.get("/")
-        request.user = Mock(id=123)
+        request.user = Mock(id=123, spec=[])
         request.session = {}
         request.META["HTTP_X_RLS_USER_ID"] = "456"
         request.GET = {"rls_user_id": "789"}
@@ -238,7 +238,7 @@ class TestInjectionVulnerabilities(TestCase):
         """Test that HTTP headers cannot inject RLS context."""
         middleware = RLSContextMiddleware(lambda r: Mock())
         request = self.factory.get("/")
-        request.user = Mock(id=123)
+        request.user = Mock(id=123, spec=[])
 
         # Try to inject via various headers
         request.META["HTTP_RLS_USER_ID"] = "456"
@@ -258,7 +258,7 @@ class TestInjectionVulnerabilities(TestCase):
             data='{"user_id": 999, "tenant_id": "1 OR 1=1"}',
             content_type="application/json",
         )
-        request.user = Mock(id=123)
+        request.user = Mock(id=123, spec=[])
 
         middleware = RLSContextMiddleware(lambda r: Mock())
 
