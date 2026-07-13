@@ -14,37 +14,37 @@ help: ## Show this help message
 	@echo 'Development Commands:'
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -vE 'docker-|db-|test' | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
-# Docker commands
+# Docker / database
+DOCKER_COMPOSE := docker compose
+TEST_ENV := USE_POSTGRESQL=true DB_NAME=postgres DB_USER=rls_test_user DB_PASSWORD=testpass DB_HOST=localhost DB_PORT=5433
+RUN_TESTS := ./scripts/run-tests.sh
+
 .PHONY: docker-up
-docker-up: ## Start PostgreSQL with docker-compose
-	docker-compose up -d
-	@echo "Waiting for PostgreSQL to be ready..."
-	@sleep 3
-	@docker-compose exec -T postgres pg_isready -U postgres || (echo "PostgreSQL not ready" && exit 1)
-	@echo "PostgreSQL is ready!"
+docker-up: ## Start PostgreSQL with docker compose
+	$(DOCKER_COMPOSE) up -d --wait postgres
+	@echo "PostgreSQL is ready on localhost:5433"
 
 .PHONY: docker-down
 docker-down: ## Stop PostgreSQL
-	docker-compose down
+	$(DOCKER_COMPOSE) down
 
 .PHONY: docker-reset
 docker-reset: ## Reset PostgreSQL (delete all data)
-	docker-compose down -v
-	docker-compose up -d
+	$(DOCKER_COMPOSE) down -v
+	$(DOCKER_COMPOSE) up -d --wait postgres
 	@echo "PostgreSQL has been reset"
 
 .PHONY: docker-logs
 docker-logs: ## Show PostgreSQL logs
-	docker-compose logs -f postgres
+	$(DOCKER_COMPOSE) logs -f postgres
 
-# Database commands
 .PHONY: db-shell
 db-shell: ## Open PostgreSQL shell
-	docker-compose exec postgres psql -U postgres
+	$(DOCKER_COMPOSE) exec postgres psql -U postgres
 
 .PHONY: db-create-user
 db-create-user: ## Create test user for RLS tests
-	docker-compose exec -T postgres psql -U postgres -c "CREATE USER rls_test_user WITH PASSWORD 'testpass' CREATEDB;" || echo "User already exists"
+	$(DOCKER_COMPOSE) exec -T postgres psql -U postgres -c "CREATE USER rls_test_user WITH PASSWORD 'testpass' CREATEDB;" || echo "User already exists"
 
 .PHONY: db-setup
 db-setup: docker-up db-create-user ## Setup database with test user
@@ -60,34 +60,41 @@ install-dev: install ## Install dev dependencies
 	poetry install --with dev,docs
 	poetry run pre-commit install
 
-# Testing commands
+# Testing — always uses docker compose PostgreSQL
 .PHONY: test
-test: ## Run all tests
-	poetry run pytest
+test: ## Run all tests (starts Postgres via docker compose)
+	$(RUN_TESTS)
 
 .PHONY: test-cov
-test-cov: ## Run tests with coverage
-	poetry run pytest --cov=django_rls --cov-report=term-missing --cov-report=html
+test-cov: ## Run tests with coverage (starts Postgres via docker compose)
+	$(RUN_TESTS) --cov=django_rls --cov-report=term-missing --cov-report=html
 
 .PHONY: test-security
-test-security: ## Run security tests only
-	poetry run pytest tests/test_security.py -v
+test-security: ## Run security tests (starts Postgres via docker compose)
+	$(RUN_TESTS) tests/security tests/test_security.py -v
 
 .PHONY: test-fast
-test-fast: ## Run tests without coverage (faster)
-	poetry run pytest -n auto
+test-fast: ## Run tests in parallel (starts Postgres via docker compose)
+	$(RUN_TESTS) -n auto
 
 .PHONY: test-failed
-test-failed: ## Re-run failed tests
-	poetry run pytest --lf
+test-failed: ## Re-run failed tests (starts Postgres via docker compose)
+	$(RUN_TESTS) --lf
 
 .PHONY: test-docker
-test-docker: db-setup ## Run tests with docker PostgreSQL
-	DB_NAME=postgres DB_USER=rls_test_user DB_PASSWORD=testpass DB_HOST=localhost DB_PORT=5433 poetry run pytest
+test-docker: test ## Alias for make test
+
+.PHONY: test-compose
+test-compose: ## Run tests inside docker compose test service
+	$(DOCKER_COMPOSE) --profile test run --rm test
+
+.PHONY: test-local
+test-local: ## Run tests without starting docker (requires Postgres on DB_HOST:DB_PORT)
+	poetry run pytest
 
 .PHONY: test-watch
-test-watch: ## Run tests in watch mode
-	poetry run ptw -- -vx
+test-watch: db-setup ## Run tests in watch mode against docker PostgreSQL
+	$(TEST_ENV) poetry run ptw -- -vx
 
 # Code quality
 .PHONY: lint
@@ -129,7 +136,7 @@ clean: ## Clean up generated files
 
 # CI simulation
 .PHONY: ci-local
-ci-local: db-setup clean ## Run CI pipeline locally
+ci-local: clean ## Run CI pipeline locally (starts Postgres via docker compose)
 	@echo "Running CI pipeline locally..."
 	@$(MAKE) lint
 	@$(MAKE) type-check
