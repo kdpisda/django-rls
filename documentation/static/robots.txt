@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /docs/next/
+
+Sitemap: https://django-rls.com/sitemap.xml

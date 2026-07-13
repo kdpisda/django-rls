@@ -42,8 +42,8 @@ class TestComplexACLs(TransactionTestCase):
         # We need context to insert? Permissive policies:
         # Hierarchy: IN dept tree. ACL: IN permissions.
         # If I am u_owner in dept, I match Hierarchy.
-        set_rls_context("tenant_id", self.dept.id, is_local=False)
-        set_rls_context("user_id", self.u_owner.id, is_local=False)
+        set_rls_context("tenant_id", self.dept.id, is_local=False, system=True)
+        set_rls_context("user_id", self.u_owner.id, is_local=False, system=True)
 
         self.doc = ERPDocument.objects.create(
             title="Alien Tech", department=self.dept, classification="top_secret"
@@ -55,8 +55,8 @@ class TestComplexACLs(TransactionTestCase):
         """
         # 1. Verify "Spy" cannot see document initially
         # Spy is in "Public Library" dept (or no dept).
-        set_rls_context("tenant_id", self.other_dept.id, is_local=False)
-        set_rls_context("user_id", self.u_spy.id, is_local=False)
+        set_rls_context("tenant_id", self.other_dept.id, is_local=False, system=True)
+        set_rls_context("user_id", self.u_spy.id, is_local=False, system=True)
 
         assert ERPDocument.objects.filter(pk=self.doc.pk).exists() is False
 
@@ -91,7 +91,11 @@ class TestComplexACLs(TransactionTestCase):
             user=u_redundant, document_id=self.doc.id, can_view=True
         )
 
-        set_rls_context("tenant_id", self.dept.id, is_local=False)  # Matches Hierarchy
-        set_rls_context("user_id", u_redundant.id, is_local=False)  # Matches ACL
+        set_rls_context(
+            "tenant_id", self.dept.id, is_local=False, system=True
+        )  # Matches Hierarchy
+        set_rls_context(
+            "user_id", u_redundant.id, is_local=False, system=True
+        )  # Matches ACL
 
         assert ERPDocument.objects.filter(pk=self.doc.pk).exists() is True

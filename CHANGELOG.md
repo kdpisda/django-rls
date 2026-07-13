@@ -7,14 +7,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-13
+
+Major security release. **Not backward compatible** with 0.4.x for apps that relied on
+session-based tenant context, identity re-assignment, or permissive `CustomPolicy`
+expressions.
+
+### Breaking Changes
+
+- **Session `tenant_id` disabled by default** — middleware no longer reads
+  `request.session["tenant_id"]` unless `DJANGO_RLS["ALLOW_SESSION_TENANT"] = True`.
+- **Identity immutability** — `user_id` and `tenant_id` cannot be overridden once set
+  unless `system=True` or `system_rls_context()`. Nested `RLSContext(user_id=…)` after
+  middleware will raise `RLSContextImmutableError`.
+- **Connection hygiene on every request** — middleware calls
+  `reset_connection_rls_context()` at request start to clear stale GUCs from pooled
+  connections.
+- **Stricter `CustomPolicy` validation** — rejects whitespace-only expressions and
+  DML keywords (`INSERT`, `UPDATE`, `DELETE`) in addition to existing DDL blocklist.
+- **Context module refactor** — implementation moved to `django_rls.context`; imports
+  from `django_rls.db.functions` remain supported via re-exports.
+
 ### Added
-- **Configurable policy roles**: the `DJANGO_RLS["DEFAULT_ROLES"]` setting is now honored as the default `TO` role for every policy (previously read but ignored). Defaults to `public`, so existing behavior is unchanged; set it to a role such as `authenticated` (which must already exist in the database) to scope all policies to that role. A per-policy `roles=` argument still overrides the project-wide default.
+
+- **`django_rls.context`** — secure context management with audit logging, connection
+  reset, and `require_rls_context()`.
+- **`audit_rls` management command** — production readiness checks (RLS + FORCE RLS,
+  `CustomPolicy` warnings).
+- **`DJANGO_RLS` settings** — `REQUIRE_CONTEXT`, `STRICT_MIGRATE_RLS`, `AUDIT_LOG`,
+  `ALLOW_SESSION_TENANT`, `TENANT_MEMBERSHIP_VALIDATOR`, `REGISTERED_CONTEXT_KEYS`,
+  `RESET_CONTEXT_ON_CONNECT`.
+- **`RLSQuerySet` enforcement** — optional identity check before DB access when
+  `REQUIRE_CONTEXT=True`.
+- **Security regression suite** — 109 tests in `tests/security/`.
+- **New exceptions** — `RLSContextImmutableError`, `RLSContextRequiredError`,
+  `TenantAccessDeniedError`.
+- **Configurable policy roles**: `DJANGO_RLS["DEFAULT_ROLES"]` is now honored as the
+  default `TO` role for every policy.
 
 ### Changed
-- **Policy context reads cached per-statement**: `TenantPolicy`, `UserPolicy`, and `ModelPolicy` (via `CurrentContext`/`UserContext`) now wrap `current_setting()` in a scalar subquery in the `USING`/`WITH CHECK` predicate, so Postgres evaluates the RLS context once per statement (as an `InitPlan`) instead of once per row. Predicate-equivalent and fail-closed; the documented Postgres RLS performance pattern.
+
+- **Middleware trust boundaries** — identity comes only from authenticated `request.user`,
+  `request.tenant`, user profile, or opted-in session tenant (with optional validator).
+- **Policy context reads cached per-statement** — `TenantPolicy`, `UserPolicy`, and
+  `ModelPolicy` wrap `current_setting()` in scalar subqueries (InitPlan pattern).
+- **Absolute imports** — `django_rls.*` throughout the package.
+- **`.github/SECURITY.md`** — threat model, production checklist, known limitations.
 
 ### Fixed
-- **`AUTO_ENABLE_RLS=False` is now respected**: the `post_migrate` signal previously ignored the `DJANGO_RLS["AUTO_ENABLE_RLS"]` setting and always enabled RLS on every migration. The signal now early-returns when the setting is `False`.
+
+- **`AUTO_ENABLE_RLS=False` is now respected** — `post_migrate` early-returns when
+  disabled.
+
+### Security
+
+- Parameterized `set_config` / `current_setting` for all context values.
+- `CustomPolicy` blocklist for SQL injection and DDL/DML payloads.
+- `FORCE ROW LEVEL SECURITY` always applied by `enable_rls()`.
+- Middleware clears context on success and exception paths.
+
+### Migration from 0.4.x
+
+1. **Session tenant** — if you used `request.session["tenant_id"]`:
+   ```python
+   DJANGO_RLS = {"ALLOW_SESSION_TENANT": True}
+   ```
+2. **Re-setting identity in views/tests/workers** — use `system_rls_context()`:
+   ```python
+   from django_rls.context import system_rls_context
+
+   with system_rls_context(user_id=uid, tenant_id=tid):
+       MyModel.objects.filter(...)
+   ```
+3. **Custom context keys on pooled connections** — register them:
+   ```python
+   DJANGO_RLS = {"REGISTERED_CONTEXT_KEYS": ["department_id"]}
+   ```
+4. **Production hardening (recommended)**:
+   ```python
+   DJANGO_RLS = {
+       "REQUIRE_CONTEXT": True,
+       "AUDIT_LOG": True,
+       "STRICT_MIGRATE_RLS": True,
+   }
+   ```
+5. Run `python manage.py audit_rls` in CI before deploy.
+
+## [0.4.1] - 2026-06-01
+
+### Added
+- Patch release prior to 1.0.0 security hardening.
 
 ## [0.2.0] - 2026-01-01
 
@@ -46,5 +128,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Field name validation to prevent SQL injection
 - Secure policy generation using Django's database abstraction
 
-[unreleased]: https://github.com/kdpisda/django-rls/compare/v0.1.0...HEAD
+[unreleased]: https://github.com/kdpisda/django-rls/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/kdpisda/django-rls/compare/v0.4.1...v1.0.0
+[0.4.1]: https://github.com/kdpisda/django-rls/compare/v0.2.0...v0.4.1
+[0.2.0]: https://github.com/kdpisda/django-rls/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kdpisda/django-rls/releases/tag/v0.1.0

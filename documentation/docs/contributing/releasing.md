@@ -46,6 +46,24 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
+## Documentation versioning
+
+The docs site uses [Docusaurus versioning](https://docusaurus.io/docs/versioning). When you release a new stable version:
+
+```bash
+cd documentation
+npm ci
+npm run docusaurus docs:version 1.0.0   # snapshots docs/ → versioned_docs/version-1.0.0/
+```
+
+- **`docs/`** — in-development docs (labeled "Next" on the site)
+- **`versioned_docs/version-X.Y.Z/`** — frozen docs for that release
+- **`versions.json`** — version order (newest first)
+
+After snapshotting, sync link fixes into the new version folder if needed, then `npm run build` before deploy. The build auto-generates `sitemap.xml` (stable versions only; `/docs/next/` is excluded) and copies `static/robots.txt`.
+
+Older releases (e.g. `0.4.1`) remain available under the version dropdown with an "unmaintained" banner.
+
 ## Manual Release Process
 
 For local testing or manual releases:

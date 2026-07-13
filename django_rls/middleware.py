@@ -1,55 +1,56 @@
 """RLS Context Middleware."""
 
 import logging
-from typing import Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.http import HttpRequest, HttpResponse
 from django.utils.module_loading import import_string
 
-from .db.functions import set_rls_context
+from django_rls.conf import rls_config
+from django_rls.context import (
+    apply_rls_context,
+    clear_rls_context,
+    reset_connection_rls_context,
+)
+from django_rls.exceptions import TenantAccessDeniedError
 
 logger = logging.getLogger(__name__)
 
 
 class RLSContextMiddleware:
-    """Middleware to set RLS context variables."""
+    """Middleware to set RLS context variables from the authenticated request."""
 
     def __init__(self, get_response: Callable):
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
-        # Set RLS context before processing request
+        reset_connection_rls_context()
         self._set_rls_context(request)
 
         try:
             response = self.get_response(request)
         finally:
-            # Clear RLS context after processing, even if exception occurs
             self._clear_rls_context(request)
 
         return response
 
     def _set_rls_context(self, request: HttpRequest) -> None:
         """Set RLS context variables in PostgreSQL."""
-
         request.rls_set_keys = []
+        context_values: Dict[str, Any] = {}
 
-        def set_and_track(key, value):
-            set_rls_context(key, value, is_local=False)
-            request.rls_set_keys.append(key)
-
-        # Set user context
         if hasattr(request, "user") and not isinstance(request.user, AnonymousUser):
-            set_and_track("user_id", request.user.id)
+            context_values["user_id"] = request.user.id
 
-        # Set tenant context if available
         tenant_id = self._get_tenant_id(request)
-        if tenant_id:
-            set_and_track("tenant_id", tenant_id)
-
-        # Run Custom Context Processors
+        if tenant_id is not None:
+            if not self._validate_tenant_membership(request, tenant_id):
+                raise TenantAccessDeniedError(
+                    f"User is not authorized for tenant_id={tenant_id!r}."
+                )
+            context_values["tenant_id"] = tenant_id
 
         processors = getattr(settings, "RLS_CONTEXT_PROCESSORS", [])
         for proc_path in processors:
@@ -58,38 +59,42 @@ class RLSContextMiddleware:
                 context_data = processor(request)
                 if isinstance(context_data, dict):
                     for key, value in context_data.items():
-                        set_and_track(key, value)
+                        if value is not None and value != "":
+                            context_values[key] = value
             except Exception as e:
-                logger.error(f"Failed to run RLS context processor {proc_path}: {e}")
+                logger.error("Failed to run RLS context processor %s: %s", proc_path, e)
+
+        apply_rls_context(context_values, system=True, source="middleware")
+        request.rls_set_keys = list(context_values.keys())
 
     def _clear_rls_context(self, request: HttpRequest = None) -> None:
         """Clear RLS context variables."""
-
         if request and hasattr(request, "rls_set_keys"):
-            for key in request.rls_set_keys:
-                set_rls_context(key, "", is_local=False)
+            clear_rls_context(set(request.rls_set_keys))
         else:
-            # Fallback for safety or if request not provided
-            # (though middleware flow usually provides it)
-            set_rls_context("user_id", "", is_local=False)
-            set_rls_context("tenant_id", "", is_local=False)
+            clear_rls_context()
 
-    def _get_tenant_id(self, request: HttpRequest) -> Optional[int]:
-        """Extract tenant ID from request."""
-        # This can be customized based on your tenant detection logic
-        # Example implementations:
+    def _validate_tenant_membership(self, request: HttpRequest, tenant_id: Any) -> bool:
+        validator_path = rls_config.tenant_membership_validator
+        if not validator_path:
+            return True
+        validator = import_string(validator_path)
+        return bool(validator(request, tenant_id))
 
-        # 1. From subdomain
+    def _get_tenant_id(self, request: HttpRequest) -> Optional[Any]:
+        """Extract tenant ID from trusted request attributes only."""
         if hasattr(request, "tenant"):
             return request.tenant.id
 
-        # 2. From user profile
         if (
             hasattr(request, "user")
+            and not isinstance(request.user, AnonymousUser)
             and hasattr(request.user, "profile")
             and hasattr(request.user.profile, "tenant_id")
         ):
             return request.user.profile.tenant_id
 
-        # 3. From session
-        return request.session.get("tenant_id")
+        if rls_config.allow_session_tenant:
+            return request.session.get("tenant_id")
+
+        return None

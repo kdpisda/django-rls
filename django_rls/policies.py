@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import CharField, Func, IntegerField, Q, Value
 from django.db.models.sql import Query
 
-from .exceptions import PolicyError
+from django_rls.exceptions import PolicyError
 
 
 class BasePolicy(ABC):
@@ -48,7 +48,7 @@ class BasePolicy(ABC):
         # defaults to ``"public"``). The import is local so that importing
         # this module never reads Django settings at import time.
         if roles is None:
-            from .conf import rls_config
+            from django_rls.conf import rls_config
 
             roles = rls_config.default_roles
         self.roles = roles
@@ -179,7 +179,17 @@ class UserPolicy(BasePolicy):
 
 
 class CustomPolicy(BasePolicy):
-    """Policy with custom SQL expression."""
+    """Policy with custom SQL expression.
+
+    Expressions are validated to reject obvious SQL injection and DDL payloads.
+    Prefer :class:`ModelPolicy` with Django ``Q`` objects for production use.
+    """
+
+    _FORBIDDEN_SQL = re.compile(
+        r"(;|--|/\*|\*/|"
+        r"\b(?:DROP|ALTER|CREATE|GRANT|REVOKE|TRUNCATE|COPY|INSERT|UPDATE|DELETE)\b)",
+        re.IGNORECASE,
+    )
 
     def __init__(self, name: str, expression: str, **kwargs):
         self.expression = expression
@@ -187,8 +197,17 @@ class CustomPolicy(BasePolicy):
 
     def validate(self) -> None:
         super().validate()
-        if not self.expression:
+        if not self.expression or not str(self.expression).strip():
             raise PolicyError("expression is required for CustomPolicy")
+        self._validate_expression(self.expression)
+
+    @classmethod
+    def _validate_expression(cls, expression: str) -> None:
+        if cls._FORBIDDEN_SQL.search(expression):
+            raise PolicyError(
+                "CustomPolicy expression contains forbidden SQL tokens. "
+                "Use ModelPolicy with Q objects instead of raw SQL."
+            )
 
     def get_sql_expression(self) -> str:
         """Return the custom SQL expression."""
@@ -326,10 +345,9 @@ class ModelPolicy(BasePolicy):
         compiler = query.get_compiler("default")  # Use default connection compiler
         sql, params = compiler.compile(query.where)
 
-        # Safe parameter interpolation for DDL
         def quote_val(p):
             if isinstance(p, str):
-                return f"'{p}'"
+                return "'" + p.replace("'", "''").replace("%", "%%") + "'"
             if p is None:
                 return "NULL"
             return str(p)

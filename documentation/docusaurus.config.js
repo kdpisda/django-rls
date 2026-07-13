@@ -45,12 +45,46 @@ const config = {
         docs: {
           sidebarPath: require.resolve('./sidebars.js'),
           routeBasePath: 'docs',
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
           editUrl:
             'https://github.com/kdpisda/django-rls/tree/main/documentation/',
+          lastVersion: '1.0.0',
+          versions: {
+            current: {
+              label: 'Next',
+              path: 'next',
+            },
+            '1.0.0': {
+              label: '1.0',
+              path: '1.0',
+            },
+            '0.4.1': {
+              label: '0.4',
+              path: '0.4',
+              banner: 'unmaintained',
+            },
+          },
         },
         blog: false,
+        sitemap: {
+          lastmod: 'date',
+          changefreq: 'weekly',
+          priority: 0.5,
+          ignorePatterns: ['/docs/next/**'],
+          filename: 'sitemap.xml',
+          createSitemapItems: async (params) => {
+            const { defaultCreateSitemapItems, ...rest } = params;
+            const items = await defaultCreateSitemapItems(rest);
+            return items.map((item) => {
+              if (item.url.includes('/docs/1.0/')) {
+                return { ...item, priority: 0.8 };
+              }
+              if (item.url.includes('/docs/0.4/')) {
+                return { ...item, priority: 0.3 };
+              }
+              return item;
+            });
+          },
+        },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
         },
@@ -77,6 +111,11 @@ const config = {
             label: 'Documentation',
           },
           {
+            type: 'docsVersionDropdown',
+            position: 'right',
+            dropdownActiveClassDisabled: true,
+          },
+          {
             href: 'https://forum.django-rls.com',
             label: 'Forum',
             position: 'right',
@@ -96,19 +135,19 @@ const config = {
             items: [
               {
                 label: 'Introduction',
-                to: '/docs/intro',
+                to: '/docs/1.0/intro',
               },
               {
                 label: 'Installation',
-                to: '/docs/installation',
+                to: '/docs/1.0/installation',
               },
               {
                 label: 'Quick Start',
-                to: '/docs/quick-start',
+                to: '/docs/1.0/quick-start',
               },
               {
                 label: 'API Reference',
-                to: '/docs/api-reference',
+                to: '/docs/1.0/api-reference',
               },
             ],
           },

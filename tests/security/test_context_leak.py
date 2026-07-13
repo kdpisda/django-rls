@@ -1,62 +1,61 @@
 """
 Security Test: Context Leakage via Connection Pools
 
-This test simulates connection pooling behavior to prove that
-RLS context persists (leaks) when exceptions occur.
-Refactored to use mocks since valid Postgres DB is not guaranteed in CI.
+Middleware must clear RLS context even when the view raises.
 """
-import pytest
-from unittest.mock import Mock, patch, ANY
-from django.test import RequestFactory, SimpleTestCase
-from django.http import HttpResponse
 
+from unittest.mock import Mock
+
+import pytest
+from django.http import HttpResponse
+from django.test import RequestFactory
+
+from django_rls.context import get_active_rls_context
+from django_rls.db.functions import get_rls_context
 from django_rls.middleware import RLSContextMiddleware
 
-class TestContextLeakage(SimpleTestCase):
-    
-    def setUp(self):
-        self.factory = RequestFactory()
-        
-    @patch('django_rls.middleware.RLSContextMiddleware._set_rls_context')
-    @patch('django_rls.middleware.RLSContextMiddleware._clear_rls_context')
-    def test_exception_leaks_context_logic(self, mock_clear, mock_set):
-        """
-        Critical Vulnerability Test:
-        If a view raises an exception, the middleware MUST still call _clear_rls_context.
-        """
-        request = self.factory.get('/error')
-        request.user = Mock(id=123)
-        
-        def error_view(request):
-            raise ValueError("Crash inside view")
-            
-        middleware = RLSContextMiddleware(error_view)
-        
-        try:
-            middleware(request)
-        except ValueError:
-            pass # Expected crash
-            
-        # Assertion: process_exception logic should ensure cleanup
-        
-        if not mock_clear.called:
-             pytest.fail("Security Failure: Context was NOT cleared after exception!")
 
-        mock_set.assert_called_once()
-        mock_clear.assert_called_once()
+@pytest.mark.security
+@pytest.mark.django_db
+def test_exception_still_clears_context(require_postgresql):
+    factory = RequestFactory()
+    request = factory.get("/error")
+    request.user = Mock(id=123, spec=[])
+    request.session = {}
 
-    @patch('django_rls.middleware.RLSContextMiddleware._set_rls_context')
-    @patch('django_rls.middleware.RLSContextMiddleware._clear_rls_context')
-    def test_success_clears_context(self, mock_clear, mock_set):
-        """Control test: A normal request should clear context."""
-        request = self.factory.get('/')
-        request.user = Mock(id=456)
-        
-        def success_view(request):
-            return HttpResponse("OK")
-            
-        middleware = RLSContextMiddleware(success_view)
+    seen = {}
+
+    def error_view(_request):
+        seen["user_id"] = get_rls_context("user_id")
+        raise ValueError("Crash inside view")
+
+    middleware = RLSContextMiddleware(error_view)
+
+    with pytest.raises(ValueError):
         middleware(request)
-        
-        mock_set.assert_called_once()
-        mock_clear.assert_called_once()
+
+    assert seen["user_id"] == "123"
+    assert get_rls_context("user_id") in (None, "")
+    assert get_active_rls_context() == {}
+
+
+@pytest.mark.security
+@pytest.mark.django_db
+def test_success_clears_context(require_postgresql):
+    factory = RequestFactory()
+    request = factory.get("/")
+    request.session = {}
+    request.user = Mock(id=456, spec=[])
+
+    seen = {}
+
+    def capture_view(_request):
+        seen["user_id"] = get_rls_context("user_id")
+        return HttpResponse("OK")
+
+    middleware = RLSContextMiddleware(capture_view)
+    middleware(request)
+
+    assert seen["user_id"] == "456"
+    assert get_rls_context("user_id") in (None, "")
+    assert get_active_rls_context() == {}

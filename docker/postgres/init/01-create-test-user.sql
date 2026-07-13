@@ -1,0 +1,1 @@
+CREATE USER rls_test_user WITH PASSWORD 'testpass' CREATEDB;

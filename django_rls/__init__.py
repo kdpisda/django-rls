@@ -2,7 +2,7 @@
 Django RLS - PostgreSQL Row Level Security for Django
 """
 
-from .__version__ import __version__, __version_info__
+from django_rls.__version__ import __version__, __version_info__
 
 __author__ = "Kuldeep Pisda"
 __email__ = "kdpisda@gmail.com"
@@ -24,15 +24,19 @@ __all__ = [
 def __getattr__(name):
     """Lazy import of components to avoid circular imports and app registry issues."""
     if name == "RLSModel":
-        from .models import RLSModel
+        from django_rls.models import RLSModel
+
         return RLSModel
     elif name == "BasePolicy":
-        from .policies import BasePolicy
+        from django_rls.policies import BasePolicy
+
         return BasePolicy
     elif name == "TenantPolicy":
-        from .policies import TenantPolicy
+        from django_rls.policies import TenantPolicy
+
         return TenantPolicy
     elif name == "UserPolicy":
-        from .policies import UserPolicy
+        from django_rls.policies import UserPolicy
+
         return UserPolicy
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
