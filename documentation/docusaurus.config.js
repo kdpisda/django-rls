@@ -65,6 +65,26 @@ const config = {
           },
         },
         blog: false,
+        sitemap: {
+          lastmod: 'date',
+          changefreq: 'weekly',
+          priority: 0.5,
+          ignorePatterns: ['/docs/next/**'],
+          filename: 'sitemap.xml',
+          createSitemapItems: async (params) => {
+            const { defaultCreateSitemapItems, ...rest } = params;
+            const items = await defaultCreateSitemapItems(rest);
+            return items.map((item) => {
+              if (item.url.includes('/docs/1.0/')) {
+                return { ...item, priority: 0.8 };
+              }
+              if (item.url.includes('/docs/0.4/')) {
+                return { ...item, priority: 0.3 };
+              }
+              return item;
+            });
+          },
+        },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
         },

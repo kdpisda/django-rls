@@ -41,6 +41,15 @@ jobs:
       - name: Build website
         run: npm run build
 
+      - name: Verify sitemap
+        run: |
+          test -f build/sitemap.xml
+          test -f build/robots.txt
+          grep -q 'https://django-rls.com/sitemap.xml' build/robots.txt
+          ! grep -q '/docs/next/' build/sitemap.xml
+          grep -q '/docs/1.0/intro' build/sitemap.xml
+          grep -q '/docs/0.4/intro' build/sitemap.xml
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:

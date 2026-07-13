@@ -60,7 +60,7 @@ npm run docusaurus docs:version 1.0.0   # snapshots docs/ → versioned_docs/ver
 - **`versioned_docs/version-X.Y.Z/`** — frozen docs for that release
 - **`versions.json`** — version order (newest first)
 
-After snapshotting, sync link fixes into the new version folder if needed, then `npm run build` before deploy.
+After snapshotting, sync link fixes into the new version folder if needed, then `npm run build` before deploy. The build auto-generates `sitemap.xml` (stable versions only; `/docs/next/` is excluded) and copies `static/robots.txt`.
 
 Older releases (e.g. `0.4.1`) remain available under the version dropdown with an "unmaintained" banner.
 
