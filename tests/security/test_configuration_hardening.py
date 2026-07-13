@@ -109,29 +109,32 @@ def test_reset_rls_on_connection_skips_non_postgresql(mock_clear):
 
 
 @pytest.mark.security
-@patch("django_rls.context.clear_rls_context")
-@patch("django_rls.context.connection")
-def test_reset_connection_rls_context_delegates_to_clear(mock_conn, mock_clear):
-    mock_conn.vendor = "postgresql"
+@pytest.mark.django_db
+def test_reset_connection_rls_context_clears_session_keys(require_postgresql):
     from django_rls.context import reset_connection_rls_context
+    from django_rls.db.functions import get_rls_context
 
+    set_rls_context("user_id", 99, system=True)
+    set_rls_context("tenant_id", 7, system=True)
     reset_connection_rls_context()
-    mock_clear.assert_called_once()
+
+    assert get_rls_context("user_id") in (None, "")
+    assert get_rls_context("tenant_id") in (None, "")
 
 
 @pytest.mark.security
+@pytest.mark.django_db
 @override_settings(DJANGO_RLS={"AUDIT_LOG": True})
-@patch("django_rls.context.connection")
-def test_audit_log_emits_on_context_set(_mock_conn, caplog):
+def test_audit_log_emits_on_context_set(require_postgresql, caplog):
     caplog.set_level(logging.INFO, logger="django_rls.context")
     set_rls_context("user_id", 42, system=True)
     assert "rls_context_set" in caplog.text
 
 
 @pytest.mark.security
+@pytest.mark.django_db
 @override_settings(DJANGO_RLS={"AUDIT_LOG": True})
-@patch("django_rls.context.connection")
-def test_audit_log_emits_on_context_clear(_mock_conn, caplog):
+def test_audit_log_emits_on_context_clear(require_postgresql, caplog):
     caplog.set_level(logging.INFO, logger="django_rls.context")
     set_rls_context("user_id", 42, system=True)
     caplog.clear()
@@ -140,9 +143,9 @@ def test_audit_log_emits_on_context_clear(_mock_conn, caplog):
 
 
 @pytest.mark.security
+@pytest.mark.django_db
 @override_settings(DJANGO_RLS={"AUDIT_LOG": False})
-@patch("django_rls.context.connection")
-def test_audit_log_disabled_by_default(_mock_conn, caplog):
+def test_audit_log_disabled_by_default(require_postgresql, caplog):
     caplog.set_level(logging.INFO, logger="django_rls.context")
     set_rls_context("user_id", 1, system=True)
     assert "rls_context_set" not in caplog.text
@@ -179,22 +182,18 @@ def test_registered_context_keys_includes_standard_and_custom():
 
 
 @pytest.mark.security
+@pytest.mark.django_db
 @override_settings(DJANGO_RLS={"REGISTERED_CONTEXT_KEYS": ["department_id"]})
-@patch("django_rls.context.connection")
-def test_clear_rls_context_clears_registered_keys(mock_conn):
-    mock_cursor = MagicMock()
-    mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-    mock_conn.vendor = "postgresql"
+def test_clear_rls_context_clears_registered_keys(require_postgresql):
+    from django_rls.db.functions import get_rls_context
 
-    set_rls_context("department_id", "sales")
+    set_rls_context("department_id", "sales", system=True)
+    set_rls_context("user_id", 1, system=True)
     clear_rls_context()
 
-    cleared_keys = {
-        call.args[1][0].removeprefix("rls.")
-        for call in mock_cursor.execute.call_args_list
-        if call.args[0] == "SELECT set_config(%s, %s, %s)" and call.args[1][1] == ""
-    }
-    assert cleared_keys == {"user_id", "tenant_id", "department_id"}
+    assert get_rls_context("department_id") in (None, "")
+    assert get_rls_context("user_id") in (None, "")
+    assert get_rls_context("tenant_id") in (None, "")
 
 
 @pytest.mark.security
@@ -231,9 +230,9 @@ def test_queryset_count_requires_identity_context():
 
 
 @pytest.mark.security
+@pytest.mark.django_db
 @override_settings(DJANGO_RLS={"REQUIRE_CONTEXT": True})
-@patch("django_rls.context.connection")
-def test_queryset_get_requires_identity_context(_mock_conn):
+def test_queryset_get_requires_identity_context(require_postgresql):
     from tests.models import UserOwnedModel
 
     with pytest.raises(RLSContextRequiredError):
@@ -241,12 +240,10 @@ def test_queryset_get_requires_identity_context(_mock_conn):
 
 
 @pytest.mark.security
+@pytest.mark.django_db
 @override_settings(DJANGO_RLS={"REQUIRE_CONTEXT": True})
-@patch("django_rls.context.connection")
-def test_queryset_allows_access_when_context_set(_mock_conn):
+def test_queryset_allows_access_when_context_set(require_postgresql):
     from tests.models import UserOwnedModel
 
     set_rls_context("user_id", 1, system=True)
-    with patch.object(UserOwnedModel.objects, "count", return_value=0) as mock_count:
-        assert UserOwnedModel.objects.count() == 0
-        mock_count.assert_called_once()
+    assert UserOwnedModel.objects.count() == 0

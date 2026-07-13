@@ -4,19 +4,19 @@ Regression tests: access-control hardening (non-SQL).
 Covers identity immutability, middleware trust boundaries, and tenant session policy.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from django.contrib.auth.models import AnonymousUser
 from django.test import RequestFactory, override_settings
 
 from django_rls.context import (
-    clear_rls_context,
     get_active_rls_context,
     rls_context,
     set_rls_context,
     system_rls_context,
 )
+from django_rls.db.functions import get_rls_context
 from django_rls.exceptions import (
     RLSContextImmutableError,
     RLSContextRequiredError,
@@ -31,7 +31,6 @@ def deny_all_tenants(request, tenant_id):
 
 @pytest.fixture(autouse=True)
 def _reset_context():
-    """Reset in-process context state without touching the database."""
     from django_rls.context import _active_context, _context_source, _identity_locked
 
     _active_context.set({})
@@ -44,41 +43,43 @@ def _reset_context():
 
 
 @pytest.mark.security
-@patch("django_rls.context.connection")
-def test_user_id_cannot_be_overridden_without_system_mode(_mock_conn):
+@pytest.mark.django_db
+def test_user_id_cannot_be_overridden_without_system_mode(require_postgresql):
     set_rls_context("user_id", 1, system=True)
     with pytest.raises(RLSContextImmutableError, match="Cannot override protected"):
         set_rls_context("user_id", 2)
 
 
 @pytest.mark.security
-@patch("django_rls.context.connection")
-def test_tenant_id_cannot_be_overridden_without_system_mode(_mock_conn):
+@pytest.mark.django_db
+def test_tenant_id_cannot_be_overridden_without_system_mode(require_postgresql):
     set_rls_context("tenant_id", 10, system=True)
     with pytest.raises(RLSContextImmutableError):
         set_rls_context("tenant_id", 20)
 
 
 @pytest.mark.security
-@patch("django_rls.context.connection")
-def test_custom_context_keys_remain_mutable(_mock_conn):
+@pytest.mark.django_db
+def test_custom_context_keys_remain_mutable(require_postgresql):
     set_rls_context("user_id", 1, system=True)
     set_rls_context("department_id", "sales")
     set_rls_context("department_id", "engineering")
     assert get_active_rls_context()["department_id"] == "engineering"
+    assert get_rls_context("department_id") == "engineering"
 
 
 @pytest.mark.security
-@patch("django_rls.context.connection")
-def test_system_rls_context_allows_privileged_switch(_mock_conn):
+@pytest.mark.django_db
+def test_system_rls_context_allows_privileged_switch(require_postgresql):
     set_rls_context("user_id", 1, system=True)
     with system_rls_context(user_id=99):
         assert get_active_rls_context()["user_id"] == "99"
+        assert get_rls_context("user_id") == "99"
 
 
 @pytest.mark.security
-@patch("django_rls.context.connection")
-def test_rls_context_manager_blocks_nested_identity_override(_mock_conn):
+@pytest.mark.django_db
+def test_rls_context_manager_blocks_nested_identity_override(require_postgresql):
     with rls_context(system=True, user_id=10):
         with pytest.raises(RLSContextImmutableError):
             with rls_context(user_id=20):
@@ -86,8 +87,8 @@ def test_rls_context_manager_blocks_nested_identity_override(_mock_conn):
 
 
 @pytest.mark.security
-@patch("django_rls.middleware.apply_rls_context")
-def test_headers_cannot_inject_user_context(mock_apply):
+@pytest.mark.django_db
+def test_headers_cannot_inject_user_context(require_postgresql):
     factory = RequestFactory()
     middleware = RLSContextMiddleware(lambda request: Mock())
     request = factory.get("/")
@@ -98,14 +99,13 @@ def test_headers_cannot_inject_user_context(mock_apply):
 
     middleware._set_rls_context(request)
 
-    mock_apply.assert_called_once_with(
-        {"user_id": 123}, system=True, source="middleware"
-    )
+    assert get_active_rls_context() == {"user_id": "123"}
+    assert get_rls_context("user_id") == "123"
 
 
 @pytest.mark.security
-@patch("django_rls.middleware.apply_rls_context")
-def test_json_body_cannot_inject_user_context(mock_apply):
+@pytest.mark.django_db
+def test_json_body_cannot_inject_user_context(require_postgresql):
     factory = RequestFactory()
     middleware = RLSContextMiddleware(lambda request: Mock())
     request = factory.post(
@@ -117,14 +117,13 @@ def test_json_body_cannot_inject_user_context(mock_apply):
 
     middleware._set_rls_context(request)
 
-    mock_apply.assert_called_once_with(
-        {"user_id": 123}, system=True, source="middleware"
-    )
+    assert get_active_rls_context() == {"user_id": "123"}
+    assert get_rls_context("user_id") == "123"
 
 
 @pytest.mark.security
-@patch("django_rls.middleware.apply_rls_context")
-def test_session_tenant_ignored_by_default(mock_apply):
+@pytest.mark.django_db
+def test_session_tenant_ignored_by_default(require_postgresql):
     factory = RequestFactory()
     middleware = RLSContextMiddleware(lambda request: Mock())
     request = factory.get("/")
@@ -133,13 +132,14 @@ def test_session_tenant_ignored_by_default(mock_apply):
 
     middleware._set_rls_context(request)
 
-    mock_apply.assert_called_once_with({}, system=True, source="middleware")
+    assert get_active_rls_context() == {}
+    assert get_rls_context("tenant_id") in (None, "")
 
 
 @pytest.mark.security
+@pytest.mark.django_db
 @override_settings(DJANGO_RLS={"ALLOW_SESSION_TENANT": True})
-@patch("django_rls.middleware.apply_rls_context")
-def test_session_tenant_allowed_only_when_opted_in(mock_apply):
+def test_session_tenant_allowed_only_when_opted_in(require_postgresql):
     factory = RequestFactory()
     middleware = RLSContextMiddleware(lambda request: Mock())
     request = factory.get("/")
@@ -148,9 +148,8 @@ def test_session_tenant_allowed_only_when_opted_in(mock_apply):
 
     middleware._set_rls_context(request)
 
-    mock_apply.assert_called_once_with(
-        {"tenant_id": 42}, system=True, source="middleware"
-    )
+    assert get_active_rls_context() == {"tenant_id": "42"}
+    assert get_rls_context("tenant_id") == "42"
 
 
 @pytest.mark.security
@@ -175,8 +174,7 @@ def test_tenant_membership_validator_can_deny():
 
 @pytest.mark.security
 @override_settings(DJANGO_RLS={"REQUIRE_CONTEXT": True})
-@patch("django_rls.context.connection")
-def test_require_context_raises_when_identity_missing(_mock_conn):
+def test_require_context_raises_when_identity_missing():
     from django_rls.context import require_rls_context
 
     with pytest.raises(RLSContextRequiredError, match="identity context is required"):
@@ -184,9 +182,9 @@ def test_require_context_raises_when_identity_missing(_mock_conn):
 
 
 @pytest.mark.security
+@pytest.mark.django_db
 @override_settings(DJANGO_RLS={"REQUIRE_CONTEXT": True})
-@patch("django_rls.context.connection")
-def test_require_context_passes_when_user_id_set(_mock_conn):
+def test_require_context_passes_when_user_id_set(require_postgresql):
     from django_rls.context import require_rls_context
 
     set_rls_context("user_id", 5, system=True)

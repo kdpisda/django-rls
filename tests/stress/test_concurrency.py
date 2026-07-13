@@ -1,97 +1,117 @@
 """
 Stress Test: Concurrency and Thread Safety
 
-This test simulates high concurrency to ensure that RLS context setting
-is thread-safe and isolated between requests.
+Exercises middleware against a live PostgreSQL connection.
 """
 import threading
 import time
 from unittest.mock import Mock, patch
 
 import pytest
-from django.test import RequestFactory, SimpleTestCase
+from django.db import close_old_connections, connection, connections
+from django.http import HttpResponse
+from django.test import RequestFactory, TransactionTestCase
 
+from django_rls.db.functions import get_rls_context
 from django_rls.middleware import RLSContextMiddleware
 
 
-class TestConcurrency(SimpleTestCase):
+class TestConcurrency(TransactionTestCase):
+    databases = {"default"}
+
     def setUp(self):
         self.factory = RequestFactory()
+        if connection.vendor != "postgresql":
+            self.skipTest("PostgreSQL required")
 
-    @patch("django_rls.middleware.clear_rls_context")
-    @patch("django_rls.middleware.reset_connection_rls_context")
-    @patch("django_rls.middleware.apply_rls_context")
-    def test_concurrent_requests_isolation(
-        self, mock_apply, mock_reset, mock_clear
-    ):
-        """
-        Simulate multiple threads processing requests for different tenants
-        simultaneously to ensure no variable leakage (thread-safety).
-        """
+    def test_sequential_requests_isolate_context_on_postgres(self):
+        """Each request sets and clears its own RLS identity on PostgreSQL."""
+        seen = {}
 
-        # Define a slow-ish view that holds the context open
-        def slow_view(request):
-            time.sleep(0.01)  # 10ms delay
-            return "OK"
+        def capture_view(request):
+            seen["user_id"] = get_rls_context("user_id")
+            seen["tenant_id"] = get_rls_context("tenant_id")
+            return HttpResponse("OK")
+
+        middleware = RLSContextMiddleware(capture_view)
+
+        for worker_id in range(20):
+            seen.clear()
+            request = self.factory.get(f"/tenant/{worker_id}")
+            request.user = Mock(id=worker_id * 100, spec=[])
+            request.session = {}
+            with patch.object(middleware, "_get_tenant_id", return_value=worker_id):
+                middleware(request)
+
+            assert seen["user_id"] == str(worker_id * 100)
+            assert seen["tenant_id"] == str(worker_id)
+            assert get_rls_context("user_id") in (None, "")
+            assert get_rls_context("tenant_id") in (None, "")
+
+    def test_concurrent_requests_complete_on_postgres(self):
+        """
+        Concurrent workers must complete without error on a live database.
+
+        PostgreSQL session variables are per-connection; under heavy overlap
+        workers may share pool timing. This test asserts stability, not that
+        fifty threads can safely multiplex one session variable namespace.
+        """
+        connections["default"].inc_thread_sharing()
+        completed = []
+        errors = []
+        lock = threading.Lock()
+
+        def slow_view(_request):
+            time.sleep(0.01)
+            return HttpResponse("OK")
 
         middleware = RLSContextMiddleware(slow_view)
 
-        errors = []
-
-        def client_worker(tenant_id, user_id):
+        def client_worker(worker_id, tenant_id, user_id):
             try:
+                close_old_connections()
                 request = self.factory.get(f"/tenant/{tenant_id}")
                 request.user = Mock(id=user_id, spec=[])
-                # Mock tenant extraction logic for this test
-                with patch.object(middleware, "_get_tenant_id", return_value=tenant_id):
+                request.session = {}
+                with patch.object(
+                    middleware, "_get_tenant_id", return_value=tenant_id
+                ):
                     middleware(request)
-            except Exception as e:
-                errors.append(e)
+                with lock:
+                    completed.append(worker_id)
+            except Exception as exc:
+                errors.append(exc)
+            finally:
+                close_old_connections()
 
-        threads = []
-        # Spawn 50 threads with different tenant/user IDs
-        for i in range(50):
-            t = threading.Thread(target=client_worker, args=(i, i * 100))
-            threads.append(t)
-            t.start()
+        threads = [
+            threading.Thread(target=client_worker, args=(i, i, i * 100))
+            for i in range(50)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
 
-        for t in threads:
-            t.join()
+        connections["default"].dec_thread_sharing()
 
         if errors:
             pytest.fail(f"Concurrency errors occurred: {errors}")
+        assert len(completed) == 50
 
-        # If we got here, all requests completed without crashing.
-        # Logic verification:
-        # Since we use mocks, we can't easily verify which thread called what on the GLOBAL mock.
-        # However, the key is that RLSContextMiddleware uses LOCAL variables
-        # (request, tenant_id) to call set_rls_context.
-        # As long as it doesn't use `self.tenant_id` (class instance state),
-        # it is thread safe.
-        # This test primarily verifies no race conditions in the pure python logic crash it.
-        pass
-
-    @patch("django_rls.middleware.clear_rls_context")
-    @patch("django_rls.middleware.reset_connection_rls_context")
-    @patch("django_rls.middleware.apply_rls_context")
-    def test_middleware_is_stateless(self, mock_apply, mock_reset, mock_clear):
+    def test_middleware_is_stateless(self):
         """Verify middleware does not store request-specific state on self."""
-        middleware = RLSContextMiddleware(lambda r: "OK")
+        middleware = RLSContextMiddleware(lambda r: HttpResponse("OK"))
         request = self.factory.get("/")
+        request.user = Mock(id=1, spec=[])
         request.session = {}
 
-        # Determine attributes before request
         initial_attrs = set(dir(middleware))
-
         middleware(request)
-
-        # Determine attributes after request
         final_attrs = set(dir(middleware))
 
-        # If new attributes were added (e.g. self.tenant_id), it's a leak risk
-        new_attrs = final_attrs - initial_attrs
-        # Filter out built-ins or innocuous changes
-        unsafe_attrs = [a for a in new_attrs if not a.startswith("__")]
-
+        unsafe_attrs = [
+            a for a in (final_attrs - initial_attrs) if not a.startswith("__")
+        ]
         if unsafe_attrs:
             pytest.fail(f"Middleware is NOT stateless! It stored: {unsafe_attrs}")

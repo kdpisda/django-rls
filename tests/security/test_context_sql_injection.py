@@ -1,12 +1,12 @@
 """
 Regression tests: SQL injection via RLS session context (set_config).
 
-Context values must always be passed as query parameters, never interpolated.
+Context values must be stored literally in PostgreSQL session variables,
+never executed as SQL.
 """
 
-from unittest.mock import Mock, patch
-
 import pytest
+from django.db import connection
 
 from django_rls.context import set_rls_context
 from django_rls.db.functions import get_rls_context
@@ -28,34 +28,25 @@ RLS_EXPRESSION_QUOTE_PAYLOADS = [
 
 
 @pytest.mark.security
+@pytest.mark.django_db
 @pytest.mark.parametrize("malicious_value", CONTEXT_SET_CONFIG_PAYLOADS)
-@patch("django_rls.context.connection")
-def test_set_rls_context_uses_parameterized_query(mock_connection, malicious_value):
-    mock_cursor = Mock()
-    mock_connection.cursor.return_value.__enter__.return_value = mock_cursor
-
+def test_set_rls_context_stores_literal_value(require_postgresql, malicious_value):
     set_rls_context("user_id", malicious_value, system=True)
 
-    mock_cursor.execute.assert_called_once_with(
-        "SELECT set_config(%s, %s, %s)",
-        ["rls.user_id", str(malicious_value), False],
-    )
+    assert get_rls_context("user_id") == str(malicious_value)
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT 1")
+        assert cursor.fetchone()[0] == 1
 
 
 @pytest.mark.security
+@pytest.mark.django_db
 @pytest.mark.parametrize("key", ["user_id", "tenant_id", "user_email"])
-@patch("django_rls.context.connection")
-def test_get_rls_context_uses_parameterized_query(mock_connection, key):
-    mock_cursor = Mock()
-    mock_cursor.fetchone.return_value = (None,)
-    mock_connection.cursor.return_value.__enter__.return_value = mock_cursor
+def test_get_rls_context_reads_registered_key(require_postgresql, key):
+    set_rls_context(key, "safe-value", system=True)
 
-    get_rls_context(key)
-
-    mock_cursor.execute.assert_called_once_with(
-        "SELECT current_setting(%s, true)",
-        [f"rls.{key}"],
-    )
+    assert get_rls_context(key) == "safe-value"
 
 
 @pytest.mark.security

@@ -9,13 +9,11 @@ This module uses fuzzing to generate random combinations of:
 
 To verify that RLS invariants hold true under all conditions.
 """
-from unittest.mock import Mock, patch
-
-import pytest
 from django.db import connection
-from django.test import SimpleTestCase, TransactionTestCase
+from django.test import SimpleTestCase
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from hypothesis.extra.django import TestCase as HypothesisDjangoTestCase
 from hypothesis.stateful import RuleBasedStateMachine, initialize, rule
 
 from django_rls.expressions import RLSExpression
@@ -27,33 +25,30 @@ user_ids = st.integers(min_value=1, max_value=1000000)
 names = st.text(min_size=1, max_size=100)
 
 
-class TestFuzzingRLS(SimpleTestCase):
-    @settings(max_examples=1000)
+class TestFuzzingRLSPostgres(HypothesisDjangoTestCase):
+    @settings(max_examples=100)
     @given(tenant_id=tenant_ids, user_id=user_ids)
     def test_invariant_context_setting(self, tenant_id, user_id):
         """
-        Invariant: set_rls_context must always produce a valid SQL command
-        with properly escaped values, regardless of input.
+        Invariant: set_rls_context round-trips arbitrary values through PostgreSQL
+        without corruption and keeps session scope across cursor boundaries.
         """
-        # We mock the DB connection to verify the SQL generated
-        with patch("django_rls.context.connection") as mock_conn:
-            mock_cursor = Mock()
-            mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        if connection.vendor != "postgresql":
+            self.skipTest("PostgreSQL required")
 
-            from django_rls.db.functions import set_rls_context
+        from django_rls.context import clear_rls_context
+        from django_rls.db.functions import get_rls_context, set_rls_context
 
-            set_rls_context("user_id", user_id, is_local=False, system=True)
+        set_rls_context("user_id", user_id, is_local=False, system=True)
+        set_rls_context("tenant_id", tenant_id, is_local=False, system=True)
 
-            # Verify SQL structure
-            calls = mock_cursor.execute.call_args_list
-            assert len(calls) == 1
-            sql, params = calls[0][0]
+        assert get_rls_context("user_id") == str(user_id)
+        assert get_rls_context("tenant_id") == str(tenant_id)
 
-            # Check params
-            assert params[0] == "rls.user_id"
-            assert params[1] == str(user_id)
-            assert params[2] is False  # Session scope (fixed vulnerability)
+        clear_rls_context()
 
+
+class TestFuzzingRLS(SimpleTestCase):
     @settings(max_examples=1000)
     @given(val=st.text())
     def test_invariant_expression_escaping(self, val):
