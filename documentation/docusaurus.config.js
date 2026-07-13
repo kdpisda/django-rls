@@ -45,10 +45,24 @@ const config = {
         docs: {
           sidebarPath: require.resolve('./sidebars.js'),
           routeBasePath: 'docs',
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
           editUrl:
             'https://github.com/kdpisda/django-rls/tree/main/documentation/',
+          lastVersion: '1.0.0',
+          versions: {
+            current: {
+              label: 'Next',
+              path: 'next',
+            },
+            '1.0.0': {
+              label: '1.0',
+              path: '1.0',
+            },
+            '0.4.1': {
+              label: '0.4',
+              path: '0.4',
+              banner: 'unmaintained',
+            },
+          },
         },
         blog: false,
         theme: {
@@ -77,6 +91,11 @@ const config = {
             label: 'Documentation',
           },
           {
+            type: 'docsVersionDropdown',
+            position: 'right',
+            dropdownActiveClassDisabled: true,
+          },
+          {
             href: 'https://forum.django-rls.com',
             label: 'Forum',
             position: 'right',
@@ -96,19 +115,19 @@ const config = {
             items: [
               {
                 label: 'Introduction',
-                to: '/docs/intro',
+                to: '/docs/1.0/intro',
               },
               {
                 label: 'Installation',
-                to: '/docs/installation',
+                to: '/docs/1.0/installation',
               },
               {
                 label: 'Quick Start',
-                to: '/docs/quick-start',
+                to: '/docs/1.0/quick-start',
               },
               {
                 label: 'API Reference',
-                to: '/docs/api-reference',
+                to: '/docs/1.0/api-reference',
               },
             ],
           },

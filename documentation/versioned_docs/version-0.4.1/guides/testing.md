@@ -4,67 +4,72 @@ sidebar_position: 4
 
 # Testing
 
-Testing RLS-enabled models requires **real PostgreSQL**. Policies are enforced at the database level — SQLite and mocked connections do not exercise RLS.
+Testing RLS-enabled models requires special consideration since policies are enforced at the database level.
 
-## Running the test suite
-
-```bash
-make test              # starts docker compose Postgres, runs full suite
-make test-security     # security regression tests only
-make test-cov          # with coverage
-```
-
-See [Local Testing](../contributing/local_testing) for `scripts/run-tests.sh`, environment variables, and troubleshooting.
-
-## Basic testing setup (1.0.0+)
-
-Use `system_rls_context()` when switching identity. Identity keys are immutable once set unless you use a privileged scope.
+## Basic Testing Setup
 
 ```python
 from django.test import TestCase
 from django.contrib.auth.models import User
-from django_rls.context import system_rls_context, set_rls_context
+from django_rls.db.functions import set_rls_context
 from myapp.models import Document
 
 class RLSTestCase(TestCase):
     def setUp(self):
+        # Create test users
         self.user1 = User.objects.create_user('user1')
         self.user2 = User.objects.create_user('user2')
-
-        with system_rls_context(user_id=self.user1.id):
-            self.doc1 = Document.objects.create(
-                title='User 1 Doc',
-                owner=self.user1
-            )
-
-        with system_rls_context(user_id=self.user2.id):
-            self.doc2 = Document.objects.create(
-                title='User 2 Doc',
-                owner=self.user2
-            )
+        
+        # Set RLS context for user1
+        set_rls_context('user_id', self.user1.id)
+        
+        # Create test data
+        self.doc1 = Document.objects.create(
+            title='User 1 Doc',
+            owner=self.user1
+        )
+        
+        # Switch to user2
+        set_rls_context('user_id', self.user2.id)
+        
+        self.doc2 = Document.objects.create(
+            title='User 2 Doc',
+            owner=self.user2
+        )
 ```
 
 ## Testing Policy Enforcement
 
 ```python
 def test_user_can_only_see_own_documents(self):
-    with system_rls_context(user_id=self.user1.id):
+    # Set context to user1
+    set_rls_context('user_id', self.user1.id)
     
-        docs = Document.objects.all()
-        self.assertEqual(docs.count(), 1)
-        self.assertEqual(docs.first().owner, self.user1)
-
-    with system_rls_context(user_id=self.user2.id):
-        docs = Document.objects.all()
-        self.assertEqual(docs.count(), 1)
-        self.assertEqual(docs.first().owner, self.user2)
+    # User1 should only see their document
+    docs = Document.objects.all()
+    self.assertEqual(docs.count(), 1)
+    self.assertEqual(docs.first().owner, self.user1)
+    
+    # Switch to user2
+    set_rls_context('user_id', self.user2.id)
+    
+    # User2 should only see their document
+    docs = Document.objects.all()
+    self.assertEqual(docs.count(), 1)
+    self.assertEqual(docs.first().owner, self.user2)
 
 def test_user_cannot_update_others_documents(self):
-    with system_rls_context(user_id=self.user1.id):
+    # Try to update user2's document as user1
+    set_rls_context('user_id', self.user1.id)
     
-        updated = Document.objects.filter(id=self.doc2.id).update(title='Hacked!')
-        self.assertEqual(updated, 0)
-
+    # This should return 0 rows updated
+    updated = Document.objects.filter(
+        id=self.doc2.id
+    ).update(title='Hacked!')
+    
+    self.assertEqual(updated, 0)
+    
+    # Verify the document wasn't changed
     self.doc2.refresh_from_db()
     self.assertEqual(self.doc2.title, 'User 2 Doc')
 ```
@@ -212,32 +217,41 @@ class RLSPerformanceTest(TransactionTestCase):
         self.assertLess(rls_time, 0.1)  # Should be fast
 ```
 
-## Security regression tests
+## Testing Without PostgreSQL
 
-The `tests/security/` package runs against live PostgreSQL and verifies SQL injection resistance, identity immutability, middleware trust boundaries, and connection hygiene. Run via:
+For unit tests that don't need actual RLS:
 
-```bash
-make test-security
+```python
+from unittest.mock import patch
+
+class MockRLSTest(TestCase):
+    databases = {'default'}  # Use default test database
+    
+    @patch('django_rls.db.functions.set_rls_context')
+    def test_middleware_sets_context(self, mock_set_context):
+        # Test that middleware calls set_rls_context
+        response = self.client.get('/')
+        
+        mock_set_context.assert_called_with(
+            'user_id', 
+            self.user.id
+        )
 ```
 
-Prefer asserting `get_rls_context()` round-trips over mocking `django_rls.context.connection`.
-
-## CI/CD testing
-
-GitHub Actions runs the full `pytest` tree against PostgreSQL 17 on every PR:
+## CI/CD Testing
 
 ```yaml
+# .github/workflows/test.yml
 - name: Run tests with PostgreSQL
-  run: poetry run pytest -xvs --cov=django_rls
+  run: |
+    pytest --postgresql
   env:
-    USE_POSTGRESQL: "true"
-    DB_HOST: localhost
-    DB_PORT: 5432
-    DB_USER: rls_test_user
-    DB_PASSWORD: testpass
-```
+    DATABASE_URL: postgresql://postgres:postgres@localhost/test_db
 
-Locally, `make test` mirrors this using docker compose on port 5433.
+- name: Run unit tests with SQLite
+  run: |
+    pytest -m "not postgresql"
+```
 
 ## Best Practices
 

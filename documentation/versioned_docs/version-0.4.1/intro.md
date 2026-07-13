@@ -24,16 +24,12 @@ Row Level Security (RLS) is a PostgreSQL feature that enables fine-grained acces
 
 ## Key Features
 
-- <FaLock />&nbsp; True database-level Row Level Security with **FORCE RLS**
+- <FaLock />&nbsp; True database-level Row Level Security
 - <FaBuilding />&nbsp; Built-in tenant-based and user-based policies
 - <FaTools />&nbsp; Extensible policy system for custom rules
-- <FaBolt />&nbsp; Secure context management (middleware + `system_rls_context()`)
-- <FaVial />&nbsp; Security regression suite against live PostgreSQL
+- <FaBolt />&nbsp; Automatic context management via middleware
+- <FaVial />&nbsp; Comprehensive test utilities
 - <FaBook />&nbsp; Django-style API following DRF patterns
-
-:::info Version 1.0.0
-This documentation describes **1.0.0**, a major security release. Upgrading from 0.4.x? See [Migrating from 0.4.x](guides/migrating-from-0.4).
-:::
 
 ## How It Works
 

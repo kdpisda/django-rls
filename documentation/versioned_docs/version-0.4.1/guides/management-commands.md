@@ -6,35 +6,6 @@ sidebar_position: 3
 
 Django RLS provides management commands to help you manage Row Level Security in your database.
 
-## audit_rls
-
-**Added in 1.0.0.** Audit production readiness: verifies `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY`, and active policies on every `RLSModel` table. Warns on models using `CustomPolicy`.
-
-### Usage
-
-```bash
-python manage.py audit_rls
-```
-
-### What it checks
-
-- PostgreSQL backend (exits with error on SQLite)
-- Each `RLSModel` table has RLS enabled
-- `FORCE ROW LEVEL SECURITY` is set (prevents table-owner bypass)
-- At least one policy exists per table
-- Models using `CustomPolicy` are flagged for manual review
-
-### CI integration
-
-```yaml
-- name: Audit RLS configuration
-  run: poetry run python manage.py audit_rls
-  env:
-    DATABASE_URL: postgres://...
-```
-
-Exits with non-zero status when critical issues are found.
-
 ## enable_rls
 
 Enable Row Level Security for all RLSModel subclasses or specific models.

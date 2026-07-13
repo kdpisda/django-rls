@@ -13,7 +13,6 @@
 
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {
-  // By default, Docusaurus generates a sidebar from the docs folder structure
   tutorialSidebar: [
     'intro',
     'installation',
@@ -22,10 +21,13 @@ const sidebars = {
       type: 'category',
       label: 'Guides',
       items: [
+        'guides/configuration',
+        'guides/context',
         'guides/policies',
         'guides/middleware',
         'guides/management-commands',
         'guides/testing',
+        'guides/migrating-from-0.4',
       ],
     },
     {
@@ -51,6 +53,15 @@ const sidebars = {
             },
           ],
         },
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Contributing',
+      items: [
+        'contributing/local_testing',
+        'contributing/releasing',
+        'contributing/pypi_setup',
       ],
     },
     'api-reference',
