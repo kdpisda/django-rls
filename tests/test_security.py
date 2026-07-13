@@ -87,7 +87,7 @@ class TestSQLInjectionPrevention(TestCase):
             )
         assert "forbidden SQL tokens" in str(exc_info.value)
 
-    @patch("django_rls.db.functions.connection")
+    @patch("django_rls.context.connection")
     def test_context_value_sql_injection(self, mock_conn):
         """Test that context values are properly parameterized."""
         mock_cursor = Mock()

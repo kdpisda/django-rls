@@ -36,7 +36,7 @@ class TestFuzzingRLS(SimpleTestCase):
         with properly escaped values, regardless of input.
         """
         # We mock the DB connection to verify the SQL generated
-        with patch("django_rls.db.functions.connection") as mock_conn:
+        with patch("django_rls.context.connection") as mock_conn:
             mock_cursor = Mock()
             mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
 
