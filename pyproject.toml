@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "django-rls"
-version = "1.0.0"
+version = "2.0.0"
 description = "PostgreSQL Row Level Security (RLS) for Django applications"
 authors = ["Kuldeep Pisda <kdpisda@gmail.com>"]
 readme = "README.md"
