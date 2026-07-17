@@ -326,13 +326,29 @@ class ModelPolicy(BasePolicy):
         compiler = query.get_compiler("default")  # Use default connection compiler
         sql, params = compiler.compile(query.where)
 
-        # Safe parameter interpolation for DDL
+        # Safe parameter interpolation for DDL.
+        #
+        # Django's compiler emits '%s' placeholders plus a params list meant for
+        # driver-side binding, but a CREATE POLICY statement cannot carry bound
+        # parameters, so we must inline the values into the DDL ourselves. String
+        # values MUST have their single quotes doubled — otherwise a value
+        # containing a quote closes the literal early and injects arbitrary SQL
+        # into the policy's USING/WITH CHECK clause (a permanent RLS bypass).
+        # Doubling the quote is the correct escape under PostgreSQL's default
+        # standard_conforming_strings=on (backslashes are literal).
         def quote_val(p):
             if isinstance(p, str):
-                return f"'{p}'"
+                escaped = p.replace("'", "''")
+                return f"'{escaped}'"
             if p is None:
                 return "NULL"
-            return str(p)
+            if isinstance(p, bool):
+                return "TRUE" if p else "FALSE"
+            if isinstance(p, (int, float)):
+                return str(p)
+            # Any other type: coerce to string and quote-escape defensively.
+            escaped = str(p).replace("'", "''")
+            return f"'{escaped}'"
 
         formatted_sql = sql % tuple(quote_val(p) for p in params)
 
