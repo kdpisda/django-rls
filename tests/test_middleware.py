@@ -40,7 +40,12 @@ class TestRLSContextMiddleware(TestCase):
 
     @patch("django_rls.middleware.set_rls_context")
     def test_anonymous_user_context(self, mock_set_rls_context):
-        """Test handling anonymous user."""
+        """Test handling anonymous user.
+
+        An anonymous user must never have a real user_id *set*, but user_id must
+        still be *cleared* (scrubbed) — otherwise stale context left on a reused
+        connection by a previous authenticated request would leak into this one.
+        """
         # Setup
         get_response = Mock(return_value=HttpResponse())
         middleware = RLSContextMiddleware(get_response)
@@ -54,9 +59,21 @@ class TestRLSContextMiddleware(TestCase):
         # Call middleware
         middleware(request)
 
-        # Verify set_rls_context was NOT called for user_id (optimization)
-        calls = [c for c in mock_set_rls_context.mock_calls if "user_id" in str(c)]
-        assert len(calls) == 0, "Should not set/clear user_id for AnonymousUser"
+        # No real user_id was ever set (only the empty-string clear is allowed).
+        set_user_id_calls = [
+            c
+            for c in mock_set_rls_context.call_args_list
+            if c.args and c.args[0] == "user_id" and c.args[1] != ""
+        ]
+        assert not set_user_id_calls, "Should not set a real user_id for AnonymousUser"
+
+        # user_id WAS scrubbed to '' so no stale value can leak through.
+        cleared_user_id_calls = [
+            c
+            for c in mock_set_rls_context.call_args_list
+            if c.args and c.args[0] == "user_id" and c.args[1] == ""
+        ]
+        assert cleared_user_id_calls, "Anonymous request must scrub rls.user_id"
 
     @patch("django_rls.middleware.set_rls_context")
     def test_tenant_context_from_request(self, mock_set_rls_context):
