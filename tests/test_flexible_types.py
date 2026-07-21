@@ -49,6 +49,16 @@ def test_current_context_generates_uuid_cast():
     assert "current_setting" in sql
 
 
+def test_current_context_generates_boolean_cast():
+    ctx = RLS.context("flag", output_field=models.BooleanField())
+    mock_compiler = MagicMock()
+    mock_compiler.compile = lambda x: ("%s", [])
+
+    sql, _ = ctx.as_postgresql(mock_compiler, MagicMock())
+
+    assert ":: boolean" in sql
+
+
 @pytest.mark.django_db
 def test_integration_uuid_field():
     """
