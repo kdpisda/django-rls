@@ -68,27 +68,35 @@ class RLSDatabaseSchemaEditor(DatabaseSchemaEditor):
         wants_using = operation not in self.KNOWN_OPERATIONS or operation in self.USING_OPERATIONS
         wants_check = operation not in self.KNOWN_OPERATIONS or operation in self.CHECK_OPERATIONS
 
+        # ModelPolicy compiles the same Q object for both clauses. Compiling
+        # a Query (filter rewriting + running the SQL compiler) is
+        # expensive, so do it at most once and reuse the result rather than
+        # calling get_compiled_sql() twice for UPDATE/ALL policies.
+        compiled_sql = None
+        if (wants_using or wants_check) and hasattr(policy, "get_compiled_sql"):
+            compiled_sql = policy.get_compiled_sql(model)
+
         using_clause = ""
         if wants_using:
-            expr = None
-            # Model-aware compilation (ModelPolicy) takes priority.
             if hasattr(policy, "get_compiled_sql"):
-                expr = policy.get_compiled_sql(model)
+                expr = compiled_sql
             elif hasattr(policy, "get_using_expression"):
                 expr = policy.get_using_expression()
             elif hasattr(policy, "get_sql_expression"):
                 expr = policy.get_sql_expression()
+            else:
+                expr = None
             if expr:
                 using_clause = f"USING ({expr})"
 
         check_clause = ""
         if wants_check:
-            expr = None
-            # ModelPolicy uses the same compiled filter for the check clause.
             if hasattr(policy, "get_compiled_sql"):
-                expr = policy.get_compiled_sql(model)
+                expr = compiled_sql
             elif hasattr(policy, "get_check_expression"):
                 expr = policy.get_check_expression()
+            else:
+                expr = None
             if expr:
                 check_clause = f"WITH CHECK ({expr})"
 

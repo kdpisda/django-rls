@@ -15,7 +15,7 @@ PostgreSQL's rules, per ``CREATE POLICY``:
   * UPDATE / ALL     -> both USING and WITH CHECK
 """
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from django.db import connection, models
@@ -87,6 +87,28 @@ class TestSchemaEditorClauseGatingForModelPolicy(TestCase):
         sql = self.editor.execute.call_args[0][0]
         assert "USING (" in sql
         assert "WITH CHECK (" not in sql
+
+    def test_compiles_sql_only_once_when_both_clauses_are_needed(self):
+        """Compiling a Q object (filter rewriting + running the SQL
+        compiler) is expensive; UPDATE/ALL policies need both USING and
+        WITH CHECK but must only pay for compilation once."""
+        for operation in (BasePolicy.UPDATE, BasePolicy.ALL):
+            with self.subTest(operation=operation):
+                policy = ModelPolicy(
+                    f"policy_{operation.lower()}",
+                    filters=Q(country="US"),
+                    operation=operation,
+                )
+                with patch.object(
+                    ModelPolicy, "get_compiled_sql", wraps=policy.get_compiled_sql
+                ) as spy:
+                    self.editor.execute.reset_mock()
+                    self.editor.create_policy(self.model, policy)
+
+                assert spy.call_count == 1
+                sql = self.editor.execute.call_args[0][0]
+                assert "USING (" in sql
+                assert "WITH CHECK (" in sql
 
 
 class TestSchemaEditorClauseGatingForExpressionPolicy(TestCase):
