@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
 from django.contrib.auth import get_user_model
-from django.db.models import CharField, Func, IntegerField, Q, Value
+from django.db.models import BooleanField, CharField, Func, IntegerField, Q, Value
 from django.db.models.sql import Query
 
 from django_rls.exceptions import PolicyError
@@ -252,6 +252,9 @@ class CurrentContext(Func):
         # same single value.
         if isinstance(self.output_field, IntegerField):
             return f"(SELECT ({sql}) :: integer)", params  # noqa: E231
+
+        if isinstance(self.output_field, BooleanField):
+            return f"(SELECT ({sql}) :: boolean)", params  # noqa: E231
 
         from django.db.models import UUIDField
 
