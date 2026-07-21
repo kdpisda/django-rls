@@ -111,11 +111,21 @@ class BasePolicy(ABC):
         pass
 
     def get_using_expression(self) -> Optional[str]:
-        """Return the USING clause expression (for SELECT/DELETE)."""
+        """Return the USING clause expression (for SELECT/UPDATE/DELETE/ALL).
+
+        PostgreSQL does not accept a USING clause on an INSERT-only policy,
+        so it is omitted for that operation (see issue #72).
+        """
+        if self.operation == self.INSERT:
+            return None
         return self.get_sql_expression()
 
     def get_check_expression(self) -> Optional[str]:
-        """Return the WITH CHECK clause expression (for INSERT/UPDATE)."""
+        """Return the WITH CHECK clause expression (for INSERT/UPDATE/ALL).
+
+        PostgreSQL does not accept a WITH CHECK clause on SELECT or DELETE
+        policies, so it is omitted for those operations (see issue #72).
+        """
         # By default, use the same expression as USING
         if self.operation in [self.INSERT, self.UPDATE, self.ALL]:
             return self.get_sql_expression()
