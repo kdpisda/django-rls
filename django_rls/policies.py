@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
 from django.contrib.auth import get_user_model
-from django.db.models import CharField, Func, IntegerField, Q, Value
+from django.db.models import BooleanField, CharField, Func, IntegerField, Q, Value
 from django.db.models.sql import Query
 
 from django_rls.exceptions import PolicyError
@@ -111,11 +111,21 @@ class BasePolicy(ABC):
         pass
 
     def get_using_expression(self) -> Optional[str]:
-        """Return the USING clause expression (for SELECT/DELETE)."""
+        """Return the USING clause expression (for SELECT/UPDATE/DELETE/ALL).
+
+        PostgreSQL does not accept a USING clause on an INSERT-only policy,
+        so it is omitted for that operation (see issue #72).
+        """
+        if self.operation == self.INSERT:
+            return None
         return self.get_sql_expression()
 
     def get_check_expression(self) -> Optional[str]:
-        """Return the WITH CHECK clause expression (for INSERT/UPDATE)."""
+        """Return the WITH CHECK clause expression (for INSERT/UPDATE/ALL).
+
+        PostgreSQL does not accept a WITH CHECK clause on SELECT or DELETE
+        policies, so it is omitted for those operations (see issue #72).
+        """
         # By default, use the same expression as USING
         if self.operation in [self.INSERT, self.UPDATE, self.ALL]:
             return self.get_sql_expression()
@@ -242,6 +252,9 @@ class CurrentContext(Func):
         # same single value.
         if isinstance(self.output_field, IntegerField):
             return f"(SELECT ({sql}) :: integer)", params  # noqa: E231
+
+        if isinstance(self.output_field, BooleanField):
+            return f"(SELECT ({sql}) :: boolean)", params  # noqa: E231
 
         from django.db.models import UUIDField
 
@@ -392,7 +405,10 @@ class ModelPolicy(BasePolicy):
                         # It is a ForeignKey (ManyToOne)
 
                         # Generate Subquery:
-                        # related_id IN (SELECT id FROM RelatedModel WHERE rest=value)
+                        # The FK column stores the target field value, which is
+                        # not necessarily the related model primary key.  For
+                        # example, ``ForeignKey(Game, to_field=\"ref\")`` stores
+                        # a UUID and must therefore select ``Game.ref``.
                         related_model = field.related_model
 
                         # Recursive rewrite?
@@ -402,7 +418,7 @@ class ModelPolicy(BasePolicy):
                         # target).
 
                         subquery = related_model.objects.filter(**{rest: value}).values(
-                            "pk"
+                            field.target_field.name
                         )
 
                         # Replace 'company__name' with 'company_id__in'
