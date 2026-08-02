@@ -405,7 +405,10 @@ class ModelPolicy(BasePolicy):
                         # It is a ForeignKey (ManyToOne)
 
                         # Generate Subquery:
-                        # related_id IN (SELECT id FROM RelatedModel WHERE rest=value)
+                        # The FK column stores the target field value, which is
+                        # not necessarily the related model primary key.  For
+                        # example, ``ForeignKey(Game, to_field=\"ref\")`` stores
+                        # a UUID and must therefore select ``Game.ref``.
                         related_model = field.related_model
 
                         # Recursive rewrite?
@@ -415,7 +418,7 @@ class ModelPolicy(BasePolicy):
                         # target).
 
                         subquery = related_model.objects.filter(**{rest: value}).values(
-                            "pk"
+                            field.target_field.name
                         )
 
                         # Replace 'company__name' with 'company_id__in'
