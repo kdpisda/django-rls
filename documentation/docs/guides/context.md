@@ -72,18 +72,19 @@ with rls_context(system=True, user_id=10, department_id="sales"):
 
 ## Background jobs (Celery, async workers)
 
-HTTP middleware does **not** run in workers. You must:
+HTTP middleware does **not** run in workers. See
+[Background Tasks](./background-tasks.md) to propagate the enqueuing request's
+context to Celery, `django.tasks`, and other task queues.
 
-1. Derive `user_id` / `tenant_id` from the job payload or database — never trust raw task arguments alone.
-2. Wrap work in `system_rls_context()`.
-3. Rely on connection hygiene (`RESET_CONTEXT_ON_CONNECT`) so pooled connections do not retain stale identity.
+Jobs without a user (periodic tasks, maintenance scripts) should derive
+`user_id` / `tenant_id` from the database — never from raw task arguments — and
+wrap their work in `system_rls_context()`:
 
 ```python
-from django_rls.context import system_rls_context, reset_connection_rls_context
+from django_rls.context import system_rls_context
 
 @shared_task
 def export_tenant_data(tenant_id, requested_by_id):
-    reset_connection_rls_context()
     with system_rls_context(user_id=requested_by_id, tenant_id=tenant_id):
         return list(Report.objects.values())
 ```

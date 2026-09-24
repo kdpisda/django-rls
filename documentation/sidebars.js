@@ -25,6 +25,7 @@ const sidebars = {
         'guides/context',
         'guides/policies',
         'guides/middleware',
+        'guides/background-tasks',
         'guides/management-commands',
         'guides/testing',
         'guides/migrating-from-0.4',

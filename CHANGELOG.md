@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Background task support** (#67) — propagate the RLS context that was active when
+  a task was enqueued to the worker that runs it.
+  - `django_rls.tasks`: `capture_rls_context()`, `task_rls_context()` and the
+    `@with_rls_context` decorator for `django.tasks`, RQ, Dramatiq, or any other queue.
+  - `django_rls.contrib.celery`: `connect_celery_signals()` attaches the context to
+    published messages, and the `RLSTask` base class applies it in the worker.
+  - Worker connections are cleared before and after every task, so identity never
+    leaks between tasks; inline execution restores the caller's context.
+
 ## [1.0.0] - 2026-07-13
 
 Major security release. **Not backward compatible** with 0.4.x for apps that relied on

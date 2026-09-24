@@ -24,6 +24,7 @@ See [SECURITY.md](.github/SECURITY.md).
 - 🐍 **Pythonic Policies**: Define policies using standard Django `Q` objects
 - 🌳 **Hierarchical RLS**: Support for recursive CTEs and nested organizations
 - ⚡ **Context Processors**: Inject dynamic context variables (e.g. user IP, session data)
+- ⏱️ **Background Tasks**: Propagate RLS context to Celery and `django.tasks` workers
 - 🔧 Django 5.0, 5.1, 5.2 (LTS), and 6.0 support
 - 🧪 Comprehensive test coverage
 - 📖 Extensible policy system
