@@ -266,3 +266,70 @@ class TestCeleryRowFiltering(TransactionTestCase):
         headers = {HEADER_NAME: {"user_id": str(self.alice.id)}}
         assert run_in_worker(list_titles, headers=headers) == ["a"]
         assert run_in_worker(list_titles) == []
+
+
+@pytest.mark.django_db
+def test_worker_does_not_restore_stale_identity_after_task(require_postgresql):
+    """Leftover context on a worker connection is discarded, not restored,
+    so a later unwrapped task cannot run under it."""
+    app = make_app()
+
+    @app.task
+    def whoami():
+        return get_rls_context("user_id")
+
+    set_rls_context("user_id", 100, system=True)
+
+    assert run_in_worker(whoami, headers={HEADER_NAME: {"user_id": "5"}}) == "5"
+    assert get_active_rls_context() == {}
+    assert get_rls_context("user_id") is None
+
+
+@pytest.mark.django_db
+def test_chain_successor_inherits_context(require_postgresql, published_headers):
+    """Celery publishes a chain's next task after the current task body has
+    returned; it must still carry the originating context."""
+    app = make_app()
+
+    @app.task
+    def step():
+        return None
+
+    successor = step.si()
+    run_in_worker(
+        step,
+        headers={HEADER_NAME: {"user_id": "5"}, "chain": [dict(successor)]},
+    )
+
+    assert published_headers[-1][HEADER_NAME] == {"user_id": "5"}
+
+
+@pytest.mark.django_db
+def test_link_callback_inherits_context(require_postgresql, published_headers):
+    app = make_app()
+
+    @app.task
+    def step():
+        return None
+
+    run_in_worker(
+        step,
+        headers={HEADER_NAME: {"tenant_id": "3"}, "callbacks": [dict(step.si())]},
+    )
+
+    assert published_headers[-1][HEADER_NAME] == {"tenant_id": "3"}
+
+
+@pytest.mark.django_db
+def test_task_without_context_does_not_propagate_one(
+    require_postgresql, published_headers
+):
+    app = make_app()
+
+    @app.task
+    def step():
+        return None
+
+    run_in_worker(step, headers={"chain": [dict(step.si())]})
+
+    assert HEADER_NAME not in published_headers[-1]

@@ -16,7 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `django_rls.contrib.celery`: `connect_celery_signals()` attaches the context to
     published messages, and the `RLSTask` base class applies it in the worker.
   - Worker connections are cleared before and after every task, so identity never
-    leaks between tasks; inline execution restores the caller's context.
+    leaks between tasks; chained and linked Celery tasks inherit the context.
+    Inline execution restores the caller's context (`restore=False` turns this off
+    for worker-only tasks).
 
 ### Fixed
 

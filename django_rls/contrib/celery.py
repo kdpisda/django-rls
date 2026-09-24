@@ -40,7 +40,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from celery import Task
+from celery import Task, current_task
 from celery.signals import before_task_publish
 
 from django_rls.tasks import capture_rls_context, task_rls_context
@@ -55,9 +55,21 @@ def _on_before_task_publish(
 ) -> None:
     if headers is None or HEADER_NAME in headers:
         return
-    context = capture_rls_context()
+    context: Optional[Dict[str, Any]] = capture_rls_context()
+    if not context:
+        # Celery publishes chain successors and link callbacks after the task
+        # body has returned (and its context has been cleared), while the task
+        # is still the current one: pass its context on.
+        context = _current_worker_task_context()
     if context:
         headers[HEADER_NAME] = context
+
+
+def _current_worker_task_context() -> Optional[Dict[str, Any]]:
+    task = current_task._get_current_object()
+    if task is None or task.request.called_directly:
+        return None
+    return get_task_rls_context(task.request)
 
 
 def get_task_rls_context(request: Any) -> Optional[Dict[str, Any]]:
@@ -87,7 +99,11 @@ class RLSTask(Task):
         if request.is_eager:
             return self.run(*args, **kwargs)
 
-        with task_rls_context(get_task_rls_context(request), source="celery"):
+        # A worker has no caller whose context needs restoring; anything
+        # still on the connection is leftover state and is discarded.
+        with task_rls_context(
+            get_task_rls_context(request), source="celery", restore=False
+        ):
             return self.run(*args, **kwargs)
 
 

@@ -50,6 +50,9 @@ def export_view(request, folder_id):
     ...
 ```
 
+Chains, groups and link callbacks inherit the context too: a task published
+while another task runs gets that task's context.
+
 To use `RLSTask` for some tasks only, leave `task_cls` alone and pass it per task:
 `@shared_task(base=RLSTask)`.
 
@@ -112,8 +115,15 @@ def report_view(request, report_id):
 ```
 
 `with_rls_context` removes the `_rls_context` keyword argument before calling the
-function and runs it under that context, with the same cleanup guarantees as
-`RLSTask`. Without `_rls_context` the function runs with an empty context.
+function and runs it under that context. Without `_rls_context` the function runs
+with an empty context.
+
+Afterwards it clears the task's context and restores the caller's, because
+inline backends such as Django's default `ImmediateBackend` run the task inside
+the request that enqueued it. For tasks that only ever run in a dedicated
+worker, use `@with_rls_context(restore=False)`: the connection is then left
+empty after every task, like `RLSTask` does, so context left behind by other
+code can never outlive the task.
 `capture_rls_context()` returns a plain `dict` of strings, so it serializes with
 any task backend.
 
@@ -128,14 +138,15 @@ def run_job(payload):
 ```
 
 Inline execution (Django's `ImmediateBackend`, eager Celery, tests) is safe: the
-caller's context is restored when the task returns.
+caller's context is restored when the task returns. Pass `restore=False` in
+worker processes.
 
 ## API
 
 | Name | Description |
 | --- | --- |
 | `django_rls.tasks.capture_rls_context()` | Snapshot of the active context (`dict[str, str]`). |
-| `django_rls.tasks.task_rls_context(context)` | Context manager: clear, apply `context`, clear, restore the caller's context. Raises `TypeError`/`ValueError` for malformed input. |
-| `django_rls.tasks.with_rls_context` | Decorator reading the context from the `_rls_context` keyword argument. |
+| `django_rls.tasks.task_rls_context(context, restore=True)` | Context manager: clear, apply `context`, clear, then restore the caller's context unless `restore=False`. Raises `TypeError`/`ValueError` for malformed input. |
+| `django_rls.tasks.with_rls_context` | Decorator reading the context from the `_rls_context` keyword argument. `@with_rls_context(restore=False)` for worker-only tasks. |
 | `django_rls.contrib.celery.RLSTask` | Celery task base class applying the context from the message header. |
 | `django_rls.contrib.celery.connect_celery_signals()` | Attach the active context to published Celery tasks. `disconnect_celery_signals()` undoes it. |

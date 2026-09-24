@@ -90,15 +90,21 @@ def task_rls_context(
     context: Optional[Mapping[str, Any]] = None,
     *,
     source: str = "task",
+    restore: bool = True,
 ) -> Iterator[Dict[str, str]]:
     """Run a block with exactly ``context`` as the RLS context.
 
     On entry, any context already on the connection is cleared (so a worker
     never runs a task under the previous task's identity) and ``context`` is
     applied as a privileged (``system=True``) switch. On exit, the task's
-    context is cleared and whatever was active before is restored — this keeps
-    in-process execution (eager Celery tasks, ``django.tasks``
-    ``ImmediateBackend``) from clobbering the caller's context.
+    context is cleared.
+
+    With ``restore=True`` (the default), whatever was active before is then
+    re-applied. This keeps in-process execution (``django.tasks``
+    ``ImmediateBackend``, direct calls) from clobbering the caller's context.
+    In a worker process, where "whatever was active before" can only be state
+    left behind by earlier code, pass ``restore=False`` so the connection is
+    left empty.
 
     With no ``context`` the block runs with an empty context, which RLS
     policies treat as "no identity" (fail closed).
@@ -118,13 +124,13 @@ def task_rls_context(
         yield get_active_rls_context()
     finally:
         _clear_scope(task_context)
-        if previous:
+        if restore and previous:
             apply_rls_context(
                 previous, system=True, source=previous_source or "restore"
             )
 
 
-def with_rls_context(func: F) -> F:
+def with_rls_context(func: Optional[F] = None, *, restore: bool = True) -> Any:
     """Decorate a task function so it runs under a propagated RLS context.
 
     The caller passes the snapshot through the ``_rls_context`` keyword
@@ -138,12 +144,22 @@ def with_rls_context(func: F) -> F:
         build_report.enqueue(42, _rls_context=capture_rls_context())
 
     Calls without ``_rls_context`` run with an empty context.
+
+    By default the caller's context is restored afterwards, which inline
+    backends need. For tasks that only ever run in a dedicated worker, use
+    ``@with_rls_context(restore=False)`` so no leftover context survives the
+    task (see :func:`task_rls_context`).
     """
 
-    @functools.wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        context = kwargs.pop(RLS_CONTEXT_KWARG, None)
-        with task_rls_context(context):
-            return func(*args, **kwargs)
+    def decorate(f: F) -> F:
+        @functools.wraps(f)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            context = kwargs.pop(RLS_CONTEXT_KWARG, None)
+            with task_rls_context(context, restore=restore):
+                return f(*args, **kwargs)
 
-    return wrapper  # type: ignore[return-value]
+        return wrapper  # type: ignore[return-value]
+
+    if func is not None:
+        return decorate(func)
+    return decorate

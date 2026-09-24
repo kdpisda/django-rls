@@ -215,3 +215,19 @@ class TestTaskRowFiltering(TransactionTestCase):
 
         assert list_titles(**{RLS_CONTEXT_KWARG: snapshot}) == ["a"]
         assert list_titles() == []
+
+
+@pytest.mark.django_db
+def test_with_rls_context_restore_false_leaves_connection_empty(
+    require_postgresql,
+):
+    @with_rls_context(restore=False)
+    def job():
+        return get_rls_context("user_id")
+
+    # Leftover from earlier code on a worker connection.
+    set_rls_context("user_id", 100, system=True)
+
+    assert job(**{RLS_CONTEXT_KWARG: {"user_id": "5"}}) == "5"
+    assert get_active_rls_context() == {}
+    assert get_rls_context("user_id") is None
