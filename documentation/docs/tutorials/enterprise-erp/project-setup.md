@@ -101,3 +101,26 @@ python manage.py migrate
 ```
 
 At this stage, **RLS is not yet active**. We have defined the structure, but we haven't defined any policies yet. In the next chapter, we will implement the first layer of security.
+
+### A note on migrations and RLS
+
+`makemigrations` only tracks Django model state — the generated migration
+files never contain `ENABLE ROW LEVEL SECURITY` or `CREATE POLICY`
+statements. Once `ERPDocument` has policies, RLS is applied separately,
+after `migrate`, via the `post_migrate` signal (as long as
+[`AUTO_ENABLE_RLS`](../../guides/configuration.md#auto_enable_rls-default-true)
+is `True`, which it is by default, and `DATABASES["default"]["ENGINE"]` is
+`django_rls.backends.postgresql`).
+
+If that signal doesn't fire in your environment, or you'd rather trigger it
+explicitly as part of your deploy pipeline, run:
+
+```bash
+python manage.py enable_rls
+```
+
+Re-run this command any time you add a new `RLSModel` or change its
+`rls_policies` — see [Management Commands](../../guides/management-commands.md#enable_rls).
+If you prefer to embed RLS DDL directly into a migration file instead of
+relying on `post_migrate`, use the `EnableRLS` and `CreatePolicy` operations
+from [`django_rls.migration_operations`](../../api-reference.md#enablerls).
