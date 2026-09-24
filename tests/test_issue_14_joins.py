@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 from django.db import connection, models
 from django.db.models import Q
@@ -15,6 +17,7 @@ def test_joined_field_reference_error():
     """
 
     class Company(models.Model):
+        ref = models.UUIDField(default=uuid.uuid4, unique=True)
         name = models.CharField(max_length=100)
 
         class Meta:
@@ -23,7 +26,11 @@ def test_joined_field_reference_error():
 
     class Employee(RLSModel):
         name = models.CharField(max_length=100)
-        company = models.ForeignKey(Company, on_delete=models.CASCADE)
+        company = models.ForeignKey(
+            Company,
+            on_delete=models.CASCADE,
+            to_field="ref",
+        )
 
         class Meta:
             app_label = "tests"
