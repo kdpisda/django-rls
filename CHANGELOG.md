@@ -7,8 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Background task support** (#67) — propagate the RLS context that was active when
+  a task was enqueued to the worker that runs it.
+  - `django_rls.tasks`: `capture_rls_context()`, `task_rls_context()` and the
+    `@with_rls_context` decorator for `django.tasks`, RQ, Dramatiq, or any other queue.
+  - `django_rls.contrib.celery`: `connect_celery_signals()` attaches the context to
+    published messages, and the `RLSTask` base class applies it in the worker.
+  - Worker connections are cleared before and after every task, so identity never
+    leaks between tasks; chained and linked Celery tasks inherit the context.
+    Inline execution restores the caller's context (`restore=False` turns this off
+    for worker-only tasks).
+
 ### Fixed
 
+- **`RLS.context(..., output_field=BooleanField())` compiled to `text`** — it is now cast
+  to `boolean`, so it can be used directly as a policy predicate. (#73)
 - **Invalid `WITH CHECK` clause on SELECT/DELETE policies** — `RLSDatabaseSchemaEditor`
   now gates `USING`/`WITH CHECK` clause generation on `policy.operation`, matching
   PostgreSQL's rules (SELECT/DELETE: `USING` only; INSERT: `WITH CHECK` only;
