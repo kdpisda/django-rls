@@ -18,6 +18,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Worker connections are cleared before and after every task, so identity never
     leaks between tasks; inline execution restores the caller's context.
 
+### Fixed
+
+- **`RLS.context(..., output_field=BooleanField())` compiled to `text`** — it is now cast
+  to `boolean`, so it can be used directly as a policy predicate. (#73)
+- **Invalid `WITH CHECK` clause on SELECT/DELETE policies** — `RLSDatabaseSchemaEditor`
+  now gates `USING`/`WITH CHECK` clause generation on `policy.operation`, matching
+  PostgreSQL's rules (SELECT/DELETE: `USING` only; INSERT: `WITH CHECK` only;
+  UPDATE/ALL: both). Previously, `ModelPolicy` (and any policy compiled via
+  `get_compiled_sql`) emitted both clauses regardless of operation, causing Postgres
+  to reject `SELECT`/`DELETE` policies with "WITH CHECK cannot be applied to SELECT
+  or DELETE". `BasePolicy.get_using_expression()` is likewise now omitted for
+  `INSERT`-only policies. (#72)
+
 ## [1.0.0] - 2026-07-13
 
 Major security release. **Not backward compatible** with 0.4.x for apps that relied on
