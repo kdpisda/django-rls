@@ -31,8 +31,8 @@ Row Level Security (RLS) is a PostgreSQL feature that enables fine-grained acces
 - <FaVial />&nbsp; Security regression suite against live PostgreSQL
 - <FaBook />&nbsp; Django-style API following DRF patterns
 
-:::info Version 1.0.0
-This documentation describes **1.0.0**, a major security release. Upgrading from 0.4.x? See [Migrating from 0.4.x](guides/migrating-from-0.4).
+:::info Version 2.1
+This documentation describes **2.1**, which adds [background task support](guides/background-tasks) for Celery, `django.tasks` and other queues. Upgrading from 0.4.x? The security hardening released as 1.0.0 (published on PyPI as 2.0.0) is not backward compatible; see [Migrating from 0.4.x](guides/migrating-from-0.4).
 :::
 
 ## How It Works

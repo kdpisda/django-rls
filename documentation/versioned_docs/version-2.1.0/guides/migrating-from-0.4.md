@@ -99,8 +99,10 @@ from django_rls.db.functions import set_rls_context  # re-export
 ## Upgrade command
 
 ```bash
-pip install "django-rls>=1.0.0,<2.0.0"
+pip install "django-rls>=2.0,<3"
 ```
+
+The 1.0.0 release described here was published on PyPI as **2.0.0**; there is no 1.x on PyPI.
 
 Run your test suite against **real PostgreSQL** (`make test` locally). SQLite does not exercise RLS.
 
