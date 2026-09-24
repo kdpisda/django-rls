@@ -23,4 +23,4 @@ Congratulations! You have built a secure, enterprise-grade ERP backend using `dj
 
 *   Check out the **[API Reference](../../api-reference)** for all `ModelPolicy` options.
 *   Explore **[Multi-Tenancy Guide](../../examples/tenant-based)** for more isolation patterns.
-*   Deploy to production! (Remember to run `python manage.py enable_rls` in your deployment pipeline).
+*   Deploy to production! Recommended deploy pattern: run `python manage.py migrate` followed by `python manage.py enable_rls`, or rely on the default [`AUTO_ENABLE_RLS`](../../guides/configuration.md#auto_enable_rls-default-true) behavior and verify it took effect with `python manage.py rls_status` / `python manage.py audit_rls` in CI.

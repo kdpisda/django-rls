@@ -56,6 +56,26 @@ python manage.py makemigrations
 python manage.py migrate
 ```
 
+`makemigrations` only tracks your Django model state — it does **not** write
+`ENABLE ROW LEVEL SECURITY` or `CREATE POLICY` into the migration files. RLS
+itself is applied separately, after `migrate` runs, via the `post_migrate`
+signal (controlled by the [`AUTO_ENABLE_RLS`](guides/configuration.md#auto_enable_rls-default-true)
+setting, which defaults to `True`).
+
+If RLS doesn't seem to be active — for example `AUTO_ENABLE_RLS` is `False`,
+you're not on the `django_rls.backends.postgresql` engine, or the
+`post_migrate` signal failed silently — run it manually:
+
+```bash
+python manage.py enable_rls
+```
+
+Re-run `enable_rls` whenever you add a new `RLSModel` or change its
+`rls_policies`. See [Management Commands](guides/management-commands.md#enable_rls)
+for options, and [`rls_status`](guides/management-commands.md#rls_status) /
+[`audit_rls`](guides/management-commands.md#audit_rls) for verifying RLS is
+actually enabled (handy in CI).
+
 ## 5. Use Your Model
 
 Your views work normally - RLS filtering is automatic:
