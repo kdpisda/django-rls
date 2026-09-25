@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-09-24
+
 ### Added
 
 - **Background task support** (#67) — propagate the RLS context that was active when
@@ -154,7 +156,8 @@ expressions.
 - Field name validation to prevent SQL injection
 - Secure policy generation using Django's database abstraction
 
-[unreleased]: https://github.com/kdpisda/django-rls/compare/v1.0.0...HEAD
+[unreleased]: https://github.com/kdpisda/django-rls/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/kdpisda/django-rls/compare/v2.0.1...v2.1.0
 [1.0.0]: https://github.com/kdpisda/django-rls/compare/v0.4.1...v1.0.0
 [0.4.1]: https://github.com/kdpisda/django-rls/compare/v0.2.0...v0.4.1
 [0.2.0]: https://github.com/kdpisda/django-rls/compare/v0.1.0...v0.2.0

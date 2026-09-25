@@ -47,11 +47,15 @@ const config = {
           routeBasePath: 'docs',
           editUrl:
             'https://github.com/kdpisda/django-rls/tree/main/documentation/',
-          lastVersion: '1.0.0',
+          lastVersion: '2.1.0',
           versions: {
             current: {
               label: 'Next',
               path: 'next',
+            },
+            '2.1.0': {
+              label: '2.1',
+              path: '2.1',
             },
             '1.0.0': {
               label: '1.0',
@@ -75,7 +79,7 @@ const config = {
             const { defaultCreateSitemapItems, ...rest } = params;
             const items = await defaultCreateSitemapItems(rest);
             return items.map((item) => {
-              if (item.url.includes('/docs/1.0/')) {
+              if (item.url.includes('/docs/2.1/')) {
                 return { ...item, priority: 0.8 };
               }
               if (item.url.includes('/docs/0.4/')) {
@@ -135,19 +139,19 @@ const config = {
             items: [
               {
                 label: 'Introduction',
-                to: '/docs/1.0/intro',
+                to: '/docs/2.1/intro',
               },
               {
                 label: 'Installation',
-                to: '/docs/1.0/installation',
+                to: '/docs/2.1/installation',
               },
               {
                 label: 'Quick Start',
-                to: '/docs/1.0/quick-start',
+                to: '/docs/2.1/quick-start',
               },
               {
                 label: 'API Reference',
-                to: '/docs/1.0/api-reference',
+                to: '/docs/2.1/api-reference',
               },
             ],
           },
